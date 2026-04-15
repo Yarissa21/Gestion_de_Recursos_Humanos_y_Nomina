@@ -1,1 +1,2 @@
-Base de datos PostgreSQL
+Estructura Base de Datos
+PostgreSQL + Prisma
