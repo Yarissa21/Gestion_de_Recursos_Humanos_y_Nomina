@@ -14,5 +14,9 @@ export class EmpleadosService {
 
     return this.prisma.empleado.create({ data });
   }
+
+  async listarEmpleados() {
+    return this.prisma.empleado.findMany();
+  }
 }
 
