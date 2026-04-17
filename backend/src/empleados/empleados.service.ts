@@ -17,7 +17,11 @@ export class EmpleadosService {
   }
 
   async listarEmpleados() {
-    return this.prisma.empleado.findMany();
+    return this.prisma.empleado.findMany({
+    where: {
+      eliminado: false,
+    },
+  });
   }
 
   async actualizarEmpleado(id: number, data: UpdateEmpleadoDto) {
