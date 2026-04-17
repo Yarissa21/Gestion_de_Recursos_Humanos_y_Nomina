@@ -1,0 +1,187 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Departamento {
+  id_departamento Int        @id @default(autoincrement())
+  nombre_departamento String
+
+  empleados Empleado[]
+}
+
+model Empleado {
+  id_empleado       Int       @id @default(autoincrement())
+  nombre_empleado   String
+  apellido_empleado String
+  dpi               String
+  fecha_nacimiento  DateTime
+  direccion         String
+  telefono          String
+  salario           Float
+  estado            String
+
+  id_departamento Int
+  departamento    Departamento @relation(fields: [id_departamento], references: [id_departamento])
+
+  academicos InformacionAcademica[]
+  documentos DocumentoExpediente[]
+  validacion ValidacionExpediente?
+  detalles   DetalleNomina[]
+}
+
+model InformacionAcademica {
+  id_academico    Int      @id @default(autoincrement())
+  titulo          String
+  certificacion   String
+  institucion     String
+  fecha_graduacion DateTime
+
+  id_empleado Int
+  empleado    Empleado @relation(fields: [id_empleado], references: [id_empleado])
+
+  documentos DocumentoAcademico[]
+}
+
+model DocumentoAcademico {
+  id_doc_academico Int      @id @default(autoincrement())
+  nombre           String
+  archivo          String
+  fecha_carga      DateTime
+
+  id_academico Int
+  academico    InformacionAcademica @relation(fields: [id_academico], references: [id_academico])
+
+  id_tipo_doc_academico Int
+  tipo_doc            TipoDocumentoAcademico @relation(fields: [id_tipo_doc_academico], references: [id_tipo_doc_academico])
+
+  id_usuario Int
+  usuario    Usuario @relation(fields: [id_usuario], references: [id_usuario])
+}
+
+model TipoDocumentoAcademico {
+  id_tipo_doc_academico Int    @id @default(autoincrement())
+  nombre                String
+  obligatorio           Boolean
+
+  documentos DocumentoAcademico[]
+}
+
+model DocumentoExpediente {
+  id_documento   Int      @id @default(autoincrement())
+  nombre_documento String
+  archivo        String
+  fecha_carga    DateTime
+
+  id_tipo Int
+  tipo    TipoDocumento @relation(fields: [id_tipo], references: [id_tipo])
+
+  id_empleado Int
+  empleado    Empleado @relation(fields: [id_empleado], references: [id_empleado])
+
+  id_usuario Int
+  usuario    Usuario @relation(fields: [id_usuario], references: [id_usuario])
+}
+
+model TipoDocumento {
+  id_tipo     Int    @id @default(autoincrement())
+  nombre      String
+  obligatorio Boolean
+
+  documentos DocumentoExpediente[]
+}
+
+model ValidacionExpediente {
+  id_validacion Int      @id @default(autoincrement())
+  estado        String
+  fecha         DateTime
+
+  id_empleado Int @unique
+  empleado    Empleado @relation(fields: [id_empleado], references: [id_empleado])
+}
+
+model Usuario {
+  id_usuario Int    @id @default(autoincrement())
+  nombre     String
+  password   String
+  rol        String
+
+  documentosExpediente DocumentoExpediente[]
+  documentosAcademicos DocumentoAcademico[]
+  ajustes              AjusteNomina[]
+}
+
+model Nomina {
+  id_nomina     Int      @id @default(autoincrement())
+  periodo       String
+  tipo          String
+  fecha_creacion DateTime
+  estado        String
+
+  detalles DetalleNomina[]
+}
+
+model DetalleNomina {
+  id_detalle      Int    @id @default(autoincrement())
+  salario_base    Float
+  horas_trabajadas Float
+  horas_extra     Float
+
+  id_nomina Int
+  nomina    Nomina @relation(fields: [id_nomina], references: [id_nomina])
+
+  id_empleado Int
+  empleado    Empleado @relation(fields: [id_empleado], references: [id_empleado])
+
+  conceptos DetalleConceptoNomina[]
+  ajustes   AjusteNomina[]
+}
+
+model ConceptoNomina {
+  id_concepto Int    @id @default(autoincrement())
+  nombre      String
+  tipo        String
+
+  detalles DetalleConceptoNomina[]
+}
+
+model DetalleConceptoNomina {
+  id_detalle_concepto Int    @id @default(autoincrement())
+  monto               Float
+
+  id_detalle Int
+  detalle    DetalleNomina @relation(fields: [id_detalle], references: [id_detalle])
+
+  id_concepto Int
+  concepto    ConceptoNomina @relation(fields: [id_concepto], references: [id_concepto])
+
+  ajustes AjusteNomina[]
+}
+
+model AjusteNomina {
+  id_ajuste        Int      @id @default(autoincrement())
+  descripcion      String
+  valor_anterior   Float
+  valor_nuevo      Float
+  campo_modificado String
+  fecha            DateTime
+
+  id_usuario Int
+  usuario    Usuario @relation(fields: [id_usuario], references: [id_usuario])
+
+  id_detalle Int?
+  detalle    DetalleNomina? @relation(fields: [id_detalle], references: [id_detalle])
+
+  id_detalle_concepto Int?
+  detalleConcepto     DetalleConceptoNomina? @relation(fields: [id_detalle_concepto], references: [id_detalle_concepto])
+}
