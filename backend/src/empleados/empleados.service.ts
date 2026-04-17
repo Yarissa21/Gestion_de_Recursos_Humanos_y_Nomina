@@ -1,6 +1,7 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateEmpleadoDto } from './dto/create-empleado.dto';
+import { UpdateEmpleadoDto } from './dto/update-empleado.dto';
 
 @Injectable()
 export class EmpleadosService {
@@ -17,6 +18,18 @@ export class EmpleadosService {
 
   async listarEmpleados() {
     return this.prisma.empleado.findMany();
+  }
+
+  async actualizarEmpleado(id: number, data: UpdateEmpleadoDto) {
+    const empleado = await this.prisma.empleado.findUnique({ where: { id_empleado: id } });
+    if (!empleado) {
+      throw new NotFoundException(`Empleado con id ${id} no existe`);
+    }
+
+    return this.prisma.empleado.update({
+      where: { id_empleado: id },
+      data,
+    });
   }
 }
 
