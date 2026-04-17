@@ -31,5 +31,20 @@ export class EmpleadosService {
       data,
     });
   }
+
+  async eliminarEmpleado(id: number) {
+    const empleado = await this.prisma.empleado.findUnique({
+      where: { id_empleado: id },
+    });
+
+    if (!empleado) {
+      throw new NotFoundException(`Empleado con id ${id} no existe`);
+    }
+
+    return this.prisma.empleado.update({
+      where: { id_empleado: id },
+      data: { eliminado: true },
+    });
+  }
 }
 

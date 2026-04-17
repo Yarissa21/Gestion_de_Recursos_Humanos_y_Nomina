@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Put, Param, ParseIntPipe } from '@nestjs/common';
+import { Controller, Post, Body, Get, Put, Param, ParseIntPipe, Delete } from '@nestjs/common';
 import { EmpleadosService } from './empleados.service';
 import { CreateEmpleadoDto } from './dto/create-empleado.dto';
 import { UpdateEmpleadoDto } from './dto/update-empleado.dto';
@@ -25,4 +25,8 @@ export class EmpleadosController {
     return this.empleadosService.actualizarEmpleado(id, dto);
   }
 
+  @Delete(':id')
+  async eliminar(@Param('id', ParseIntPipe) id: number) {
+    return this.empleadosService.eliminarEmpleado(id);
+  }
 }
