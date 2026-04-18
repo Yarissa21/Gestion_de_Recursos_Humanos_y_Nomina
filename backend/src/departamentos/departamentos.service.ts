@@ -37,5 +37,20 @@ export class DepartamentosService {
       },
     });
   }
+
+  async eliminarDepartamento(id: number) {
+    const departamento = await this.prisma.departamento.findUnique({
+      where: { id_departamento: id },
+    });
+
+    if (!departamento) {
+      throw new NotFoundException(`Departamento con id ${id} no existe`);
+    }
+
+    return this.prisma.departamento.update({
+      where: { id_departamento: id },
+      data: { eliminado: true },
+    });
+  }
 }
 
