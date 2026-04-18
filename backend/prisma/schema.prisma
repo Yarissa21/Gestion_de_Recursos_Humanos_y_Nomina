@@ -16,6 +16,7 @@ datasource db {
 model Departamento {
   id_departamento Int        @id @default(autoincrement())
   nombre_departamento String
+  eliminado           Boolean    @default(false)
 
   empleados Empleado[]
 }
