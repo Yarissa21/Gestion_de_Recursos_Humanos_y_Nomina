@@ -29,7 +29,8 @@ model Empleado {
   direccion         String
   telefono          String
   salario           Float
-  estado            String
+  estado            EstadoEmpleado @default(Activo)
+  eliminado         Boolean @default(false)
 
   id_departamento Int
   departamento    Departamento @relation(fields: [id_departamento], references: [id_departamento])
@@ -38,6 +39,12 @@ model Empleado {
   documentos DocumentoExpediente[]
   validacion ValidacionExpediente?
   detalles   DetalleNomina[]
+}
+
+enum EstadoEmpleado {
+  Activo
+  Suspendido
+  Retirado
 }
 
 model InformacionAcademica {
