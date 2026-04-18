@@ -13,5 +13,11 @@ export class DepartamentosService {
       },
     });
   }
+
+  async listarDepartamentos() {
+    return this.prisma.departamento.findMany({
+      where: { eliminado: false }, 
+    });
+  }
 }
 
