@@ -54,6 +54,7 @@ model InformacionAcademica {
   certificacion   String
   institucion     String
   fecha_graduacion DateTime
+  eliminado       Boolean  @default(false)
 
   id_empleado Int
   empleado    Empleado @relation(fields: [id_empleado], references: [id_empleado])
@@ -66,6 +67,7 @@ model DocumentoAcademico {
   nombre           String
   archivo          String
   fecha_carga      DateTime
+  eliminado        Boolean  @default(false)
 
   id_academico Int
   academico    InformacionAcademica @relation(fields: [id_academico], references: [id_academico])
@@ -81,6 +83,7 @@ model TipoDocumentoAcademico {
   id_tipo_doc_academico Int    @id @default(autoincrement())
   nombre                String
   obligatorio           Boolean
+  eliminado             Boolean @default(false)
 
   documentos DocumentoAcademico[]
 }

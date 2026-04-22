@@ -5,9 +5,18 @@ import { PrismaModule } from './prisma/prisma.module';
 import { EmpleadosModule } from './empleados/empleados.module';
 import { DepartamentosModule } from './departamentos/departamentos.module';
 import { AuthModule } from './auth/auth.module';
+import { AcademicosModule } from './academicos/academicos.module';
+import { NominaModule } from './nomina/nomina.module';
 
 @Module({
-  imports: [PrismaModule, EmpleadosModule, DepartamentosModule,AuthModule],
+  imports: [
+  PrismaModule, 
+  EmpleadosModule, 
+  DepartamentosModule,
+  AuthModule, 
+  AcademicosModule, 
+  NominaModule
+  ],
   controllers: [AppController],
   providers: [AppService],
 })
