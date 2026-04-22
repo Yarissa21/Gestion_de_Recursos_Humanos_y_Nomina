@@ -6,6 +6,6 @@ import { PrismaModule } from '../prisma/prisma.module';
 @Module({
   imports: [PrismaModule],
   providers: [NominaService],
-  controllers: [NominaController]
+  controllers: [NominaController],
 })
 export class NominaModule {}

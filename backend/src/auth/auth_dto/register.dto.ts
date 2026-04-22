@@ -1,4 +1,4 @@
-import { IsString } from 'class-validator';
+import { IsString, IsOptional, IsIn } from 'class-validator';
 
 export class RegisterDto {
   @IsString()
@@ -7,6 +7,7 @@ export class RegisterDto {
   @IsString()
   password!: string;
 
-  @IsString()
-  rol!: string;
+  @IsOptional()
+  @IsIn(['admin', 'user', 'UserRH'])
+  rol?: string;
 }

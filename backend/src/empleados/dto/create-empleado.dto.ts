@@ -1,4 +1,11 @@
-import { IsString, IsInt, IsDateString, IsNumber, IsNotEmpty, IsEnum } from 'class-validator';
+import {
+  IsString,
+  IsInt,
+  IsDateString,
+  IsNumber,
+  IsNotEmpty,
+  IsEnum,
+} from 'class-validator';
 import { EstadoEmpleado } from '@prisma/client';
 
 export class CreateEmpleadoDto {
@@ -26,7 +33,9 @@ export class CreateEmpleadoDto {
   @IsNumber()
   salario!: number;
 
-  @IsEnum(EstadoEmpleado, { message: 'El estado debe ser Activo, Suspendido o Retirado' })
+  @IsEnum(EstadoEmpleado, {
+    message: 'El estado debe ser Activo, Suspendido o Retirado',
+  })
   estado!: EstadoEmpleado;
 
   @IsInt()

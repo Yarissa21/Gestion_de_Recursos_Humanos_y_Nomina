@@ -7,7 +7,7 @@ export class CreateDocumentoAcademicoDto {
 
   @IsString()
   @IsNotEmpty()
-  archivo!: string; 
+  archivo!: string;
 
   @IsDateString()
   fecha_carga!: Date;

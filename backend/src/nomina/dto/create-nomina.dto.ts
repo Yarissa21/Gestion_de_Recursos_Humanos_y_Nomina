@@ -3,9 +3,9 @@ import { IsString, IsNotEmpty } from 'class-validator';
 export class CreateNominaDto {
   @IsString()
   @IsNotEmpty({ message: 'El período es obligatorio' })
-  periodo!: string; 
+  periodo!: string;
 
   @IsString()
   @IsNotEmpty({ message: 'El tipo es obligatorio' })
-  tipo!: string; 
+  tipo!: string;
 }

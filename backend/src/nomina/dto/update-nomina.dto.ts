@@ -11,5 +11,5 @@ export class UpdateNominaDto {
 
   @IsString()
   @IsOptional()
-  estado?: string; 
+  estado?: string;
 }
