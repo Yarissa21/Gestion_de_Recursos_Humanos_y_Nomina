@@ -123,7 +123,7 @@ model ValidacionExpediente {
 
 model Usuario {
   id_usuario Int    @id @default(autoincrement())
-  nombre     String
+  nombre     String 
   password   String
   rol        String
 
