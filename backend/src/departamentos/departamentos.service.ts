@@ -17,7 +17,7 @@ export class DepartamentosService {
 
   async listarDepartamentos() {
     return this.prisma.departamento.findMany({
-      where: { eliminado: false }, 
+      where: { eliminado: false },
     });
   }
 
@@ -53,4 +53,3 @@ export class DepartamentosService {
     });
   }
 }
-

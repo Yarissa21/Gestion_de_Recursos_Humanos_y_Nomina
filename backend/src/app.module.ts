@@ -10,12 +10,12 @@ import { NominaModule } from './nomina/nomina.module';
 
 @Module({
   imports: [
-  PrismaModule, 
-  EmpleadosModule, 
-  DepartamentosModule,
-  AuthModule, 
-  AcademicosModule, 
-  NominaModule
+    PrismaModule,
+    EmpleadosModule,
+    DepartamentosModule,
+    AuthModule,
+    AcademicosModule,
+    NominaModule,
   ],
   controllers: [AppController],
   providers: [AppService],

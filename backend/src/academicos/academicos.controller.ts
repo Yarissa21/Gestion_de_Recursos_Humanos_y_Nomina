@@ -1,4 +1,16 @@
-import {Controller,Post,Body,Get,Put,Param,ParseIntPipe,Delete,UseInterceptors,UploadedFile,BadRequestException} from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Put,
+  Param,
+  ParseIntPipe,
+  Delete,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
+} from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AcademicosService } from './academicos.service';
 import { CreateAcademicoDto } from './dto/create-academico.dto';
@@ -21,7 +33,7 @@ export class AcademicosController {
   @Put(':id')
   async actualizar(
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateAcademicoDto
+    @Body() dto: UpdateAcademicoDto,
   ) {
     return this.academicosService.actualizarAcademico(id, dto);
   }
@@ -33,12 +45,11 @@ export class AcademicosController {
 
   @Post('documento')
   @UseInterceptors(FileInterceptor('file'))
-  async subirDocumento(
-    @UploadedFile() file: any,
-    @Body() body: any
-  ) {
+  async subirDocumento(@UploadedFile() file: any, @Body() body: any) {
     if (!file) {
-      throw new BadRequestException('Debe enviar el archivo en el campo "file"');
+      throw new BadRequestException(
+        'Debe enviar el archivo en el campo "file"',
+      );
     }
 
     const base64 = file.buffer.toString('base64');

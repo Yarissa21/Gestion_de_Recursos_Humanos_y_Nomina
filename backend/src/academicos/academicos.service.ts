@@ -19,12 +19,12 @@ export class AcademicosService {
     });
   }
 
-    async listarAcademicos() {
+  async listarAcademicos() {
     return this.prisma.informacionAcademica.findMany({
-        where: { eliminado: false },
-        include: { empleado: true },
+      where: { eliminado: false } as any,
+      include: { empleado: true },
     });
-    }
+  }
 
   async actualizarAcademico(id: number, dto: UpdateAcademicoDto) {
     const academico = await this.prisma.informacionAcademica.findUnique({
@@ -46,33 +46,34 @@ export class AcademicosService {
     });
   }
 
-    async eliminarAcademico(id: number) {
+  async eliminarAcademico(id: number) {
     const academico = await this.prisma.informacionAcademica.findUnique({
-        where: { id_academico: id },
+      where: { id_academico: id },
     });
 
     if (!academico) {
-        throw new NotFoundException(`Académico con id ${id} no existe`);
+      throw new NotFoundException(`Académico con id ${id} no existe`);
     }
 
     return this.prisma.informacionAcademica.update({
-        where: { id_academico: id },
-        data: { eliminado: true },
+      where: { id_academico: id },
+      data: { eliminado: true } as any,
     });
-    }
+  }
 
   async subirDocumento(data: any) {
     const academico = await this.prisma.informacionAcademica.findUnique({
-        where: { id_academico: data.id_academico },
+      where: { id_academico: data.id_academico },
     });
 
     if (!academico) {
-        throw new NotFoundException(`Académico con id ${data.id_academico} no existe`);
+      throw new NotFoundException(
+        `Académico con id ${data.id_academico} no existe`,
+      );
     }
 
     return this.prisma.documentoAcademico.create({
-        data,
+      data,
     });
   }
-  
 }
