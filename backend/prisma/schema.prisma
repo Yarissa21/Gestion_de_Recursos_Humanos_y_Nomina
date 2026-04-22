@@ -196,3 +196,21 @@ model AjusteNomina {
   id_detalle_concepto Int?
   detalleConcepto     DetalleConceptoNomina? @relation(fields: [id_detalle_concepto], references: [id_detalle_concepto])
 }
+
+model Document {
+  id        Int     @id @default(autoincrement())
+  filename  String
+  mimetype  String
+  size      Int
+  url       String
+  metadata  Json?
+  status    String  @default("active")
+  visibility String @default("private")
+  isConfidential Boolean @default(false)
+  tags      String[]  @default([])
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("documents")
+}
