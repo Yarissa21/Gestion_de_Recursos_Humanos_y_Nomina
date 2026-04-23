@@ -137,9 +137,16 @@ model Nomina {
   periodo       String
   tipo          String
   fecha_creacion DateTime
-  estado        String
+  estado        EstadoNomina @default(Pendiente)
+  eliminado Boolean @default(false)
 
   detalles DetalleNomina[]
+}
+
+enum EstadoNomina {
+  Pendiente
+  Procesada
+  Cerrada
 }
 
 model DetalleNomina {
@@ -147,6 +154,7 @@ model DetalleNomina {
   salario_base    Float
   horas_trabajadas Float
   horas_extra     Float
+  eliminado Boolean @default(false)
 
   id_nomina Int
   nomina    Nomina @relation(fields: [id_nomina], references: [id_nomina])
@@ -162,6 +170,7 @@ model ConceptoNomina {
   id_concepto Int    @id @default(autoincrement())
   nombre      String
   tipo        String
+  eliminado Boolean @default(false)
 
   detalles DetalleConceptoNomina[]
 }
@@ -169,6 +178,7 @@ model ConceptoNomina {
 model DetalleConceptoNomina {
   id_detalle_concepto Int    @id @default(autoincrement())
   monto               Float
+  eliminado Boolean @default(false)
 
   id_detalle Int
   detalle    DetalleNomina @relation(fields: [id_detalle], references: [id_detalle])

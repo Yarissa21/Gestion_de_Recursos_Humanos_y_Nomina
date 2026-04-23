@@ -19,7 +19,9 @@ export class NominaService {
   }
 
   async listarNominas() {
-    return this.prisma.nomina.findMany();
+    return this.prisma.nomina.findMany({
+    where: { eliminado: false },
+   });
   }
 
   async obtenerNomina(id: number) {
@@ -37,6 +39,21 @@ export class NominaService {
     return this.prisma.nomina.update({
       where: { id_nomina: id },
       data: dto,
+    });
+  }
+
+  async eliminarNomina(id: number) {
+    const nomina = await this.prisma.nomina.findUnique({
+      where: { id_nomina: id },
+    });
+
+    if (!nomina || nomina.eliminado) {
+      throw new NotFoundException(`Nómina con id ${id} no existe o ya fue eliminada`);
+    }
+
+    return this.prisma.nomina.update({
+      where: { id_nomina: id },
+      data: { eliminado: true },
     });
   }
 }

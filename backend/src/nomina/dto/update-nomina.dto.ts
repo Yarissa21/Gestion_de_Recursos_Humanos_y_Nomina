@@ -1,4 +1,5 @@
-import { IsString, IsOptional } from 'class-validator';
+import { IsString, IsOptional, IsEnum } from 'class-validator';
+import { EstadoNomina } from '@prisma/client';
 
 export class UpdateNominaDto {
   @IsString()
@@ -9,7 +10,7 @@ export class UpdateNominaDto {
   @IsOptional()
   tipo?: string;
 
-  @IsString()
+  @IsEnum(EstadoNomina, { message: 'El estado debe ser Pendiente, Procesada o Cerrada' })
   @IsOptional()
-  estado?: string;
+  estado?: EstadoNomina;
 }

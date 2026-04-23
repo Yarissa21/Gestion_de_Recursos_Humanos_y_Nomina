@@ -7,6 +7,7 @@ import {
   Param,
   ParseIntPipe,
   UseGuards,
+  Delete,
 } from '@nestjs/common';
 import { NominaService } from './nomina.service';
 import { CreateNominaDto } from './dto/create-nomina.dto';
@@ -45,5 +46,10 @@ export class NominaController {
     @Body() dto: UpdateNominaDto,
   ) {
     return this.nominaService.actualizarNomina(id, dto);
+  }
+
+  @Delete(':id')
+  async eliminar(@Param('id', ParseIntPipe) id: number) {
+    return this.nominaService.eliminarNomina(id);
   }
 }
