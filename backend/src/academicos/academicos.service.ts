@@ -8,6 +8,10 @@ import { UpdateAcademicoDto } from './dto/update-academico.dto';
 export class AcademicosService {
   constructor(private prisma: PrismaService) {}
 
+  // ============================
+  // ACADÉMICOS
+  // ============================
+
   async crearAcademico(dto: CreateAcademicoDto) {
     return this.prisma.informacionAcademica.create({
       data: {
@@ -89,6 +93,10 @@ export class AcademicosService {
       data: { eliminado: true } as any,
     });
   }
+
+  // ============================
+  // DOCUMENTOS ACADÉMICOS
+  // ============================
 
   async subirDocumento(data: any) {
     const academico = await this.prisma.informacionAcademica.findUnique({

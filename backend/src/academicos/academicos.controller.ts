@@ -17,10 +17,13 @@ import { AcademicosService } from './academicos.service';
 import { CreateAcademicoDto } from './dto/create-academico.dto';
 import { UpdateAcademicoDto } from './dto/update-academico.dto';
 
-
 @Controller('academicos')
 export class AcademicosController {
   constructor(private readonly academicosService: AcademicosService) {}
+
+  // ============================
+  // ACADÉMICOS
+  // ============================
 
   @Post()
   async crear(@Body() dto: CreateAcademicoDto) {
@@ -65,6 +68,10 @@ export class AcademicosController {
       id_empleado,
     );
   }
+
+  // ============================
+  // DOCUMENTOS ACADÉMICOS
+  // ============================
 
   @Post('documento')
   @UseInterceptors(FileInterceptor('file'))
