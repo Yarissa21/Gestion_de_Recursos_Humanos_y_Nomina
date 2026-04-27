@@ -17,6 +17,8 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CreateDetalleNominaDto } from './dto/create-detalle-nomina.dto';
 import { UpdateDetalleNominaDto } from './dto/update-detalle-nomina.dto';
+import { CreateDetalleConceptoDto } from './dto/create-detalle-concepto.dto';
+import { UpdateDetalleConceptoDto } from './dto/update-detalle-concepto.dto';
 
 @Controller('nomina')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -85,6 +87,38 @@ export class NominaController {
   @Delete('detalles/:id')
   async eliminarDetalle(@Param('id', ParseIntPipe) id_detalle: number) {
     return this.nominaService.eliminarDetalleNomina(id_detalle);
+  }
+
+  //________________________Detalle Concepto Nomina_______________________
+  @Post('detalles/:id/conceptos')
+  async crearDetalleConcepto(
+    @Param('id', ParseIntPipe) id_detalle: number,
+    @Body() dto: CreateDetalleConceptoDto
+  ) {
+    return this.nominaService.crearDetalleConcepto(id_detalle, dto);
+  }
+
+  @Get('detalles/:id/conceptos')
+  async listarDetalleConceptos(@Param('id', ParseIntPipe) id_detalle: number) {
+    return this.nominaService.listarDetalleConceptos(id_detalle);
+  }
+
+  @Get('conceptos/:id')
+  async obtenerDetalleConcepto(@Param('id', ParseIntPipe) id_detalle_concepto: number) {
+    return this.nominaService.obtenerDetalleConcepto(id_detalle_concepto);
+  }
+
+  @Put('conceptos/:id')
+  async actualizarDetalleConcepto(
+    @Param('id', ParseIntPipe) id_detalle_concepto: number,
+    @Body() dto: UpdateDetalleConceptoDto
+  ) {
+    return this.nominaService.actualizarDetalleConcepto(id_detalle_concepto, dto);
+  }
+
+  @Delete('conceptos/:id')
+  async eliminarDetalleConcepto(@Param('id', ParseIntPipe) id_detalle_concepto: number) {
+    return this.nominaService.eliminarDetalleConcepto(id_detalle_concepto);
   }
 
   //_________________________Calcular Nomina______________________________

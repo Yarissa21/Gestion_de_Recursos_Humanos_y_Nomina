@@ -4,6 +4,8 @@ import { CreateNominaDto } from './dto/create-nomina.dto';
 import { UpdateNominaDto } from './dto/update-nomina.dto';
 import { CreateDetalleNominaDto } from './dto/create-detalle-nomina.dto';
 import { UpdateDetalleNominaDto } from './dto/update-detalle-nomina.dto';
+import { CreateDetalleConceptoDto } from './dto/create-detalle-concepto.dto';
+import { UpdateDetalleConceptoDto } from './dto/update-detalle-concepto.dto';
 
 @Injectable()
 export class NominaService {
@@ -109,8 +111,58 @@ export class NominaService {
     });
   }
 
-  //_________________________Calcular Nomina______________________________
+  //________________________Detalle Concepto Nomina_______________________
+  async crearDetalleConcepto(id_detalle: number, dto: CreateDetalleConceptoDto) {
+    const detalle = await this.prisma.detalleNomina.findUnique({ where: { id_detalle } });
+    if (!detalle || detalle.eliminado) throw new NotFoundException('Detalle de nómina no encontrado');
 
+    const concepto = await this.prisma.conceptoNomina.findUnique({ where: { id_concepto: dto.id_concepto } });
+    if (!concepto || concepto.eliminado) throw new NotFoundException('Concepto no encontrado');
+
+    return this.prisma.detalleConceptoNomina.create({
+      data: {
+        monto: dto.monto,
+        id_detalle,
+        id_concepto: dto.id_concepto,
+      },
+    });
+ }
+
+  async listarDetalleConceptos(id_detalle: number) {
+    return this.prisma.detalleConceptoNomina.findMany({
+      where: { id_detalle, eliminado: false },
+      include: { concepto: true },
+    });
+  }
+
+  async obtenerDetalleConcepto(id_detalle_concepto: number) {
+    const detalleConcepto = await this.prisma.detalleConceptoNomina.findUnique({
+      where: { id_detalle_concepto },
+      include: { concepto: true },
+    });
+    if (!detalleConcepto || detalleConcepto.eliminado) {
+      throw new NotFoundException('Detalle concepto no encontrado');
+    }
+    return detalleConcepto;
+  }
+
+  async actualizarDetalleConcepto(id_detalle_concepto: number, dto: UpdateDetalleConceptoDto) {
+    await this.obtenerDetalleConcepto(id_detalle_concepto);
+    return this.prisma.detalleConceptoNomina.update({
+      where: { id_detalle_concepto },
+      data: dto,
+    });
+  }
+
+  async eliminarDetalleConcepto(id_detalle_concepto: number) {
+    await this.obtenerDetalleConcepto(id_detalle_concepto);
+    return this.prisma.detalleConceptoNomina.update({
+      where: { id_detalle_concepto },
+      data: { eliminado: true },
+    });
+  }
+
+  //_________________________Calcular Nomina______________________________
   async recalcularNomina(id_nomina: number) {
     const nomina = await this.prisma.nomina.findUnique({
       where: { id_nomina },
