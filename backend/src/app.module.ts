@@ -7,6 +7,7 @@ import { DepartamentosModule } from './departamentos/departamentos.module';
 import { AuthModule } from './auth/auth.module';
 import { AcademicosModule } from './academicos/academicos.module';
 import { NominaModule } from './nomina/nomina.module';
+import { ConceptoNominaModule } from './concepto-nomina/concepto-nomina.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { NominaModule } from './nomina/nomina.module';
     AuthModule,
     AcademicosModule,
     NominaModule,
+    ConceptoNominaModule,
   ],
   controllers: [AppController],
   providers: [AppService],
