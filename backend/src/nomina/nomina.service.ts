@@ -217,7 +217,10 @@ export class NominaService {
     for (const detalle of nomina.detalles) {
       const tarifaHora = detalle.salario_base / 160;
 
-      const pagoHorasNormales = tarifaHora * detalle.horas_trabajadas;
+      let pagoHorasNormales = detalle.salario_base;
+      if (nomina.tipo === 'Quincenal') {
+        pagoHorasNormales = detalle.salario_base / 2;
+      }
 
       const pagoHorasExtra = detalle.horas_extra * tarifaHora * 1.5;
 
