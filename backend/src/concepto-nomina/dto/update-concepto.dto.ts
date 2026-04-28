@@ -1,4 +1,5 @@
 import { IsString, IsOptional } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class UpdateConceptoDto {
   @IsString()
@@ -7,5 +8,6 @@ export class UpdateConceptoDto {
 
   @IsString()
   @IsOptional()
-  tipo?: string;
+  @Transform(({ value }) => value.charAt(0).toUpperCase() + value.slice(1).toLowerCase())
+  tipo?: string;  // Ej: Bonificacion, Deduccion, Comision, Descuento
 }

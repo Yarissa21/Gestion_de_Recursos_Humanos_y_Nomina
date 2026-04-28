@@ -8,6 +8,7 @@ import {
   ParseIntPipe,
   UseGuards,
   Delete,
+  Patch,
 } from '@nestjs/common';
 import { NominaService } from './nomina.service';
 import { CreateNominaDto } from './dto/create-nomina.dto';
@@ -19,6 +20,7 @@ import { CreateDetalleNominaDto } from './dto/create-detalle-nomina.dto';
 import { UpdateDetalleNominaDto } from './dto/update-detalle-nomina.dto';
 import { CreateDetalleConceptoDto } from './dto/create-detalle-concepto.dto';
 import { UpdateDetalleConceptoDto } from './dto/update-detalle-concepto.dto';
+import { UpdateEstadoNominaDto } from './dto/update-estado-nomina.dto';
 
 @Controller('nomina')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -55,6 +57,14 @@ export class NominaController {
   @Delete(':id')
   async eliminar(@Param('id', ParseIntPipe) id: number) {
     return this.nominaService.eliminarNomina(id);
+  }
+
+  @Patch(':id/estado')
+  async actualizarEstado(
+    @Param('id', ParseIntPipe) id_nomina: number,
+    @Body() dto: UpdateEstadoNominaDto
+  ) {
+    return this.nominaService.actualizarEstadoNomina(id_nomina, dto.estado);
   }
 
   //_________________________Detalle Nomina______________________________

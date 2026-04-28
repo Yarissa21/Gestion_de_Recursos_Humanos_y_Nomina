@@ -1,4 +1,4 @@
-import { IsInt, IsNumber, Min } from 'class-validator';
+import { IsInt, IsNumber, Min, IsOptional } from 'class-validator';
 
 export class CreateDetalleConceptoDto {
   @IsInt()
@@ -6,5 +6,6 @@ export class CreateDetalleConceptoDto {
 
   @IsNumber()
   @Min(0)
-  monto!: number;
+  @IsOptional()
+  monto?: number;
 }

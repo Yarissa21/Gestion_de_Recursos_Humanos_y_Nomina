@@ -1,9 +1,11 @@
 import { IsString } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class CreateConceptoDto {
   @IsString()
   nombre!: string;
 
   @IsString()
-  tipo!: string; // Ej: BONIFICACION, DEDUCCION, COMISION, DESCUENTO
+  @Transform(({ value }) => value.charAt(0).toUpperCase() + value.slice(1).toLowerCase())
+  tipo!: string; // Ej: Bonificacion, Deduccion, Comision, Descuento
 }
