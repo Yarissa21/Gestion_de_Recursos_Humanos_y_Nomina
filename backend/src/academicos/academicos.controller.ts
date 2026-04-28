@@ -10,6 +10,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Req, 
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AcademicosService } from './academicos.service';
@@ -19,6 +20,10 @@ import { UpdateAcademicoDto } from './dto/update-academico.dto';
 @Controller('academicos')
 export class AcademicosController {
   constructor(private readonly academicosService: AcademicosService) {}
+
+  // ============================
+  // ACADÉMICOS
+  // ============================
 
   @Post()
   async crear(@Body() dto: CreateAcademicoDto) {
@@ -30,18 +35,43 @@ export class AcademicosController {
     return this.academicosService.listarAcademicos();
   }
 
+  @Get('empleado/:id')
+  async obtenerPorEmpleado(
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.academicosService.obtenerPorEmpleado(id);
+  }
+
   @Put(':id')
   async actualizar(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateAcademicoDto,
   ) {
-    return this.academicosService.actualizarAcademico(id, dto);
+    if (!dto.id_empleado) {
+      throw new BadRequestException('id_empleado es requerido');
+    }
+
+    return this.academicosService.actualizarAcademico(
+      id,
+      dto,
+      dto.id_empleado,
+    );
   }
 
-  @Delete(':id')
-  async eliminar(@Param('id', ParseIntPipe) id: number) {
-    return this.academicosService.eliminarAcademico(id);
+  @Delete(':id/:id_empleado')
+  async eliminar(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('id_empleado', ParseIntPipe) id_empleado: number,
+  ) {
+    return this.academicosService.eliminarAcademico(
+      id,
+      id_empleado,
+    );
   }
+
+  // ============================
+  // DOCUMENTOS ACADÉMICOS
+  // ============================
 
   @Post('documento')
   @UseInterceptors(FileInterceptor('file'))
