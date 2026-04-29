@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {Injectable, NotFoundException, ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAcademicoDto } from './dto/create-academico.dto';
 import { UpdateAcademicoDto } from './dto/update-academico.dto';
@@ -6,6 +7,10 @@ import { UpdateAcademicoDto } from './dto/update-academico.dto';
 @Injectable()
 export class AcademicosService {
   constructor(private prisma: PrismaService) {}
+
+  // ============================
+  // ACADÉMICOS
+  // ============================
 
   async crearAcademico(dto: CreateAcademicoDto) {
     return this.prisma.informacionAcademica.create({
@@ -26,13 +31,35 @@ export class AcademicosService {
     });
   }
 
-  async actualizarAcademico(id: number, dto: UpdateAcademicoDto) {
+  async obtenerPorEmpleado(id_empleado: number) {
+    return this.prisma.informacionAcademica.findMany({
+      where: {
+        id_empleado,
+        eliminado: false,
+      } as any,
+      include: {
+        empleado: true,
+      },
+    });
+  }
+
+  async actualizarAcademico(
+    id: number,
+    dto: UpdateAcademicoDto,
+    id_empleado: number,
+  ) {
     const academico = await this.prisma.informacionAcademica.findUnique({
       where: { id_academico: id },
     });
 
     if (!academico) {
       throw new NotFoundException(`Académico con id ${id} no existe`);
+    }
+
+    if (academico.id_empleado !== id_empleado) {
+      throw new ForbiddenException(
+        'No tienes permiso para editar este registro',
+      );
     }
 
     return this.prisma.informacionAcademica.update({
@@ -46,7 +73,7 @@ export class AcademicosService {
     });
   }
 
-  async eliminarAcademico(id: number) {
+  async eliminarAcademico(id: number, id_empleado: number) {
     const academico = await this.prisma.informacionAcademica.findUnique({
       where: { id_academico: id },
     });
@@ -55,11 +82,21 @@ export class AcademicosService {
       throw new NotFoundException(`Académico con id ${id} no existe`);
     }
 
+    if (academico.id_empleado !== id_empleado) {
+      throw new ForbiddenException(
+        'No tienes permiso para eliminar este registro',
+      );
+    }
+
     return this.prisma.informacionAcademica.update({
       where: { id_academico: id },
       data: { eliminado: true } as any,
     });
   }
+
+  // ============================
+  // DOCUMENTOS ACADÉMICOS
+  // ============================
 
   async subirDocumento(data: any) {
     const academico = await this.prisma.informacionAcademica.findUnique({
@@ -74,6 +111,59 @@ export class AcademicosService {
 
     return this.prisma.documentoAcademico.create({
       data,
+    });
+  }
+
+  async listarDocumentos() {
+    return this.prisma.documentoAcademico.findMany({
+      where: { eliminado: false },
+      include: {
+        academico: true,
+        tipo_doc: true,
+        usuario: true,
+      },
+    });
+  }
+
+  async obtenerDocumento(id: number) {
+    const doc = await this.prisma.documentoAcademico.findUnique({
+      where: { id_doc_academico: id },
+    });
+
+    if (!doc) {
+      throw new NotFoundException(`Documento con id ${id} no existe`);
+    }
+
+    return doc;
+  }
+
+  async actualizarDocumento(id: number, dto: any) {
+    const doc = await this.prisma.documentoAcademico.findUnique({
+      where: { id_doc_academico: id },
+    });
+
+    if (!doc) {
+      throw new NotFoundException(`Documento con id ${id} no existe`);
+    }
+
+    return this.prisma.documentoAcademico.update({
+      where: { id_doc_academico: id },
+      data: dto,
+    });
+  }
+
+  async eliminarDocumento(id: number) {
+    const doc = await this.prisma.documentoAcademico.findUnique({
+      where: { id_doc_academico: id },
+    });
+
+    if (!doc) {
+      throw new NotFoundException(`Documento con id ${id} no existe`);
+    }
+
+    return this.prisma.documentoAcademico.update({
+      where: { id_doc_academico: id },
+      data: { eliminado: true },
     });
   }
 }
