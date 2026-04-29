@@ -7,6 +7,7 @@ import { DepartamentosModule } from './departamentos/departamentos.module';
 import { AuthModule } from './auth/auth.module';
 import { AcademicosModule } from './academicos/academicos.module';
 import { NominaModule } from './nomina/nomina.module';
+import { ConceptoNominaModule } from './concepto-nomina/concepto-nomina.module';
 import { TipoDocumentoAcademicoModule } from './tipo_documento_academico/tipo_documento_academico.module';
 
 @Module({
@@ -17,6 +18,7 @@ import { TipoDocumentoAcademicoModule } from './tipo_documento_academico/tipo_do
     AuthModule,
     AcademicosModule,
     NominaModule,
+    ConceptoNominaModule,
     TipoDocumentoAcademicoModule,
   ],
   controllers: [AppController],
