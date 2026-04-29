@@ -113,4 +113,57 @@ export class AcademicosService {
       data,
     });
   }
+
+  async listarDocumentos() {
+    return this.prisma.documentoAcademico.findMany({
+      where: { eliminado: false },
+      include: {
+        academico: true,
+        tipo_doc: true,
+        usuario: true,
+      },
+    });
+  }
+
+  async obtenerDocumento(id: number) {
+    const doc = await this.prisma.documentoAcademico.findUnique({
+      where: { id_doc_academico: id },
+    });
+
+    if (!doc) {
+      throw new NotFoundException(`Documento con id ${id} no existe`);
+    }
+
+    return doc;
+  }
+
+  async actualizarDocumento(id: number, dto: any) {
+    const doc = await this.prisma.documentoAcademico.findUnique({
+      where: { id_doc_academico: id },
+    });
+
+    if (!doc) {
+      throw new NotFoundException(`Documento con id ${id} no existe`);
+    }
+
+    return this.prisma.documentoAcademico.update({
+      where: { id_doc_academico: id },
+      data: dto,
+    });
+  }
+
+  async eliminarDocumento(id: number) {
+    const doc = await this.prisma.documentoAcademico.findUnique({
+      where: { id_doc_academico: id },
+    });
+
+    if (!doc) {
+      throw new NotFoundException(`Documento con id ${id} no existe`);
+    }
+
+    return this.prisma.documentoAcademico.update({
+      where: { id_doc_academico: id },
+      data: { eliminado: true },
+    });
+  }
 }

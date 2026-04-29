@@ -16,6 +16,8 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { AcademicosService } from './academicos.service';
 import { CreateAcademicoDto } from './dto/create-academico.dto';
 import { UpdateAcademicoDto } from './dto/update-academico.dto';
+import { Query, NotFoundException } from '@nestjs/common';
+import { StreamableFile } from '@nestjs/common';
 
 @Controller('academicos')
 export class AcademicosController {
@@ -58,7 +60,7 @@ export class AcademicosController {
     );
   }
 
-  @Delete(':id/:id_empleado')
+  @Delete('academico/:id/:id_empleado')
   async eliminar(
     @Param('id', ParseIntPipe) id: number,
     @Param('id_empleado', ParseIntPipe) id_empleado: number,
@@ -93,4 +95,68 @@ export class AcademicosController {
       id_usuario: Number(body.id_usuario),
     });
   }
+
+  @Get('documentos')
+  async listarDocumentos() {
+    return this.academicosService.listarDocumentos();
+  }
+
+  @Get('documento/:id')
+  async obtenerDocumento(
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.academicosService.obtenerDocumento(id);
+  }
+
+  @Get('documento/:id/archivo')
+  async verArchivo(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('download') download: string,
+  ) {
+    const doc = await this.academicosService.obtenerDocumento(id);
+
+    if (!doc) {
+      throw new NotFoundException('Documento no encontrado');
+    }
+
+    const buffer = Buffer.from(doc.archivo, 'base64');
+
+    const esDescarga = download === 'true';
+
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: esDescarga
+        ? `attachment; filename="${doc.nombre}"`
+        : `inline; filename="${doc.nombre}"`,
+    });
+  }
+
+  @Put('documento/:id')
+  @UseInterceptors(FileInterceptor('file'))
+  async actualizarDocumento(
+    @Param('id', ParseIntPipe) id: number,
+    @UploadedFile() file: any,
+    @Body() body: any,
+  ) {
+    let data: any = {
+      nombre: body.nombre,
+      id_tipo_doc_academico: body.id_tipo_doc_academico
+        ? Number(body.id_tipo_doc_academico)
+        : undefined,
+    };
+
+    if (file) {
+      data.archivo = file.buffer.toString('base64');
+    }
+
+    return this.academicosService.actualizarDocumento(id, data);
+  }
+
+  @Delete('documento/:id')
+  async eliminarDocumento(
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.academicosService.eliminarDocumento(id);
+  }
+  
 }
