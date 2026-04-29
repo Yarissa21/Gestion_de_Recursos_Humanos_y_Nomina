@@ -93,6 +93,7 @@ model DocumentoExpediente {
   nombre_documento String
   archivo        String
   fecha_carga    DateTime
+  eliminado      Boolean  @default(false)
 
   id_tipo Int
   tipo    TipoDocumento @relation(fields: [id_tipo], references: [id_tipo])
