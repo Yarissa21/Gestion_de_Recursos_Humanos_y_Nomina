@@ -9,6 +9,7 @@ import { AcademicosModule } from './academicos/academicos.module';
 import { NominaModule } from './nomina/nomina.module';
 import { ConceptoNominaModule } from './concepto-nomina/concepto-nomina.module';
 import { TipoDocumentoAcademicoModule } from './tipo_documento_academico/tipo_documento_academico.module';
+import { ExpedienteModule } from './expediente/expediente.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { TipoDocumentoAcademicoModule } from './tipo_documento_academico/tipo_do
     NominaModule,
     ConceptoNominaModule,
     TipoDocumentoAcademicoModule,
+    ExpedienteModule,
   ],
   controllers: [AppController],
   providers: [AppService],
