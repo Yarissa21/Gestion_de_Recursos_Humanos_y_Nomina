@@ -21,6 +21,7 @@ import { UpdateDetalleNominaDto } from './dto/update-detalle-nomina.dto';
 import { CreateDetalleConceptoDto } from './dto/create-detalle-concepto.dto';
 import { UpdateDetalleConceptoDto } from './dto/update-detalle-concepto.dto';
 import { UpdateEstadoNominaDto } from './dto/update-estado-nomina.dto';
+import { NominaEditableGuard } from '../nomina/nomina-editable.guard';
 
 @Controller('nomina')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -69,6 +70,7 @@ export class NominaController {
 
   //_________________________Detalle Nomina______________________________
   @Post(':id/detalles')
+  @UseGuards(NominaEditableGuard)
   async crearDetalle(
     @Param('id', ParseIntPipe) id_nomina: number,
     @Body() dto: CreateDetalleNominaDto
@@ -87,6 +89,7 @@ export class NominaController {
   }
 
   @Put('detalles/:id')
+  @UseGuards(NominaEditableGuard)
   async actualizarDetalle(
     @Param('id', ParseIntPipe) id_detalle: number,
     @Body() dto: UpdateDetalleNominaDto
@@ -95,12 +98,14 @@ export class NominaController {
   }
 
   @Delete('detalles/:id')
+  @UseGuards(NominaEditableGuard)
   async eliminarDetalle(@Param('id', ParseIntPipe) id_detalle: number) {
     return this.nominaService.eliminarDetalleNomina(id_detalle);
   }
 
   //________________________Detalle Concepto Nomina_______________________
   @Post('detalles/:id/conceptos')
+  @UseGuards(NominaEditableGuard)
   async crearDetalleConcepto(
     @Param('id', ParseIntPipe) id_detalle: number,
     @Body() dto: CreateDetalleConceptoDto
@@ -119,6 +124,7 @@ export class NominaController {
   }
 
   @Put('conceptos/:id')
+  @UseGuards(NominaEditableGuard)
   async actualizarDetalleConcepto(
     @Param('id', ParseIntPipe) id_detalle_concepto: number,
     @Body() dto: UpdateDetalleConceptoDto
@@ -127,6 +133,7 @@ export class NominaController {
   }
 
   @Delete('conceptos/:id')
+  @UseGuards(NominaEditableGuard)
   async eliminarDetalleConcepto(@Param('id', ParseIntPipe) id_detalle_concepto: number) {
     return this.nominaService.eliminarDetalleConcepto(id_detalle_concepto);
   }
@@ -134,6 +141,7 @@ export class NominaController {
   //_________________________Calcular Nomina______________________________
 
   @Post(':id/recalcular')
+  @UseGuards(NominaEditableGuard)
   async recalcular(@Param('id', ParseIntPipe) id: number) {
     return this.nominaService.recalcularNomina(id);
   }
