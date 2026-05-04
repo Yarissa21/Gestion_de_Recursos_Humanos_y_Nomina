@@ -3,6 +3,7 @@ import {
   ExecutionContext,
   Injectable,
   BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -13,12 +14,12 @@ export class NominaEditableGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
 
-    const id_nomina =
-      parseInt(request.params.id, 10) ||
-      parseInt(request.body.id_nomina, 10);
+    const id_nomina = Number(
+      request.params.id ?? request.body.id_nomina,
+    );
 
-    if (!id_nomina) {
-      return true;
+    if (!id_nomina || isNaN(id_nomina)) {
+      throw new BadRequestException('Se requiere un id_nomina válido');
     }
 
     const nomina = await this.prisma.nomina.findUnique({
@@ -26,7 +27,7 @@ export class NominaEditableGuard implements CanActivate {
     });
 
     if (!nomina) {
-      throw new BadRequestException('Nómina no encontrada');
+      throw new NotFoundException('Nómina no encontrada');
     }
 
     if (nomina.estado === 'Cerrada') {
