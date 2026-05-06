@@ -1,7 +1,9 @@
-import Login from './Components/Login';
+import Login from './Pages/Login';
+import Sidebar from './Components/sidebar';
 
 function App() {
-  return <Login />;
+  return <Sidebar/>;
 }
+
 
 export default App;

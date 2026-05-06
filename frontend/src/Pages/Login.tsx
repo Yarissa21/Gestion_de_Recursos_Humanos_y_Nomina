@@ -76,12 +76,7 @@ export default function Login() {
                 Recordarme
               </label>
 
-              <button
-                type="button"
-                className="font-semibold text-blue-600 hover:text-blue-700"
-              >
-                ¿Olvidaste tu contraseña?
-              </button>
+
             </div>
 
             <button
