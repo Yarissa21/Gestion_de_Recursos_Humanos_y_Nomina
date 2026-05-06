@@ -109,6 +109,7 @@ model TipoDocumento {
   id_tipo     Int    @id @default(autoincrement())
   nombre      String
   obligatorio Boolean
+  eliminado   Boolean @default(false)
 
   documentos DocumentoExpediente[]
 }

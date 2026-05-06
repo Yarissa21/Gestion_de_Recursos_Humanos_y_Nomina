@@ -17,6 +17,8 @@ import {
 
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ExpedienteService } from './expediente.service';
+import { CreateTipoDocumentoDto } from './dto/create-tipo-documento.dto';
+import { UpdateTipoDocumentoDto } from './dto/update-tipo-documento.dto';
 
 @Controller('expediente')
 export class ExpedienteController {
@@ -60,6 +62,13 @@ export class ExpedienteController {
     @Param('id', ParseIntPipe) id: number,
   ) {
     return this.service.obtenerDocumento(id);
+  }
+
+  @Get('documentos/empleado/:id')
+  async obtenerPorEmpleado(
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.service.obtenerDocumentosPorEmpleado(id);
   }
 
   @Get('documento/:id/archivo')
@@ -112,4 +121,41 @@ export class ExpedienteController {
   ) {
     return this.service.eliminarDocumento(id);
   }
+
+  // ============================
+  // TIPOS DOCUMENTO
+  // ============================
+
+  @Post('tipo')
+  async crearTipo(@Body() dto: CreateTipoDocumentoDto) {
+    return this.service.crearTipoDocumento(dto);
+  }
+
+  @Get('tipos')
+  async listarTipos() {
+    return this.service.listarTiposDocumento();
+  }
+
+  @Get('tipo/:id')
+  async obtenerTipo(
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.service.obtenerTipoDocumento(id);
+  }
+
+  @Put('tipo/:id')
+  async actualizarTipo(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateTipoDocumentoDto,
+  ) {
+    return this.service.actualizarTipoDocumento(id, dto);
+  }
+
+  @Delete('tipo/:id')
+  async eliminarTipo(
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.service.eliminarTipoDocumento(id);
+  }
+
 }
