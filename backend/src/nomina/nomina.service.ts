@@ -104,8 +104,28 @@ export class NominaService {
     return detalle;
   }
 
-  async actualizarDetalleNomina(id_detalle: number, dto: UpdateDetalleNominaDto) {
-    await this.obtenerDetalleNomina(id_detalle);
+  async actualizarDetalleNomina(id_detalle: number, dto: UpdateDetalleNominaDto, id_usuario: number,) {
+    const detalle = await this.obtenerDetalleNomina(id_detalle);
+
+    for (const campo of Object.keys(dto)) {
+    const valorAnterior = (detalle as any)[campo];
+    const valorNuevo = (dto as any)[campo];
+
+      if (valorAnterior !== valorNuevo) {
+        await this.prisma.ajusteNomina.create({
+          data: {
+            descripcion: `Cambio en ${campo}`,
+            valor_anterior: valorAnterior,
+            valor_nuevo: valorNuevo,
+            campo_modificado: campo,
+            fecha: new Date(),
+            id_usuario,
+            id_detalle,
+          },
+        });
+      }
+    }
+
     return this.prisma.detalleNomina.update({
       where: { id_detalle },
       data: dto,
@@ -171,8 +191,28 @@ export class NominaService {
     return detalleConcepto;
   }
 
-  async actualizarDetalleConcepto(id_detalle_concepto: number, dto: UpdateDetalleConceptoDto) {
-    await this.obtenerDetalleConcepto(id_detalle_concepto);
+  async actualizarDetalleConcepto(id_detalle_concepto: number, dto: UpdateDetalleConceptoDto, id_usuario: number,) {
+    const detalle_concepto = await this.obtenerDetalleConcepto(id_detalle_concepto);
+
+    for (const campo of Object.keys(dto)) {
+    const valorAnterior = (detalle_concepto as any)[campo];
+    const valorNuevo = (dto as any)[campo];
+
+      if (valorAnterior !== valorNuevo) {
+        await this.prisma.ajusteNomina.create({
+          data: {
+            descripcion: `Cambio en ${campo}`,
+            valor_anterior: valorAnterior,
+            valor_nuevo: valorNuevo,
+            campo_modificado: campo,
+            fecha: new Date(),
+            id_usuario,
+            id_detalle_concepto,
+          },
+        });
+      }
+    }
+
     return this.prisma.detalleConceptoNomina.update({
       where: { id_detalle_concepto },
       data: dto,
@@ -264,6 +304,25 @@ export class NominaService {
       estado: nominaProcesada.estado,
       resultados,
     };
+  }
+
+  // __________________Historial_Ajuste_Nomina__________________
+
+  async historialNomina(id_nomina: number) {
+    return this.prisma.ajusteNomina.findMany({
+      where: {
+        OR: [
+          { detalle: { id_nomina } },
+          { detalleConcepto: { detalle: { id_nomina } } },
+        ],
+      },
+      include: {
+        usuario: true,
+        detalle: true,
+        detalleConcepto: true,
+      },
+      orderBy: { fecha: 'desc' },
+    });
   }
 
 }

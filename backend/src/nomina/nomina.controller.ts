@@ -9,6 +9,7 @@ import {
   UseGuards,
   Delete,
   Patch,
+  Req,
 } from '@nestjs/common';
 import { NominaService } from './nomina.service';
 import { CreateNominaDto } from './dto/create-nomina.dto';
@@ -92,9 +93,11 @@ export class NominaController {
   @UseGuards(NominaEditableGuard)
   async actualizarDetalle(
     @Param('id', ParseIntPipe) id_detalle: number,
-    @Body() dto: UpdateDetalleNominaDto
+    @Body() dto: UpdateDetalleNominaDto,
+    @Req() req: any
   ) {
-    return this.nominaService.actualizarDetalleNomina(id_detalle, dto);
+    const id_usuario = req.user.id_usuario;
+    return this.nominaService.actualizarDetalleNomina(id_detalle, dto, id_usuario);
   }
 
   @Delete('detalles/:id')
@@ -127,9 +130,11 @@ export class NominaController {
   @UseGuards(NominaEditableGuard)
   async actualizarDetalleConcepto(
     @Param('id', ParseIntPipe) id_detalle_concepto: number,
-    @Body() dto: UpdateDetalleConceptoDto
+    @Body() dto: UpdateDetalleConceptoDto,
+    @Req() req: any
   ) {
-    return this.nominaService.actualizarDetalleConcepto(id_detalle_concepto, dto);
+    const id_usuario = req.user.id_usuario;
+    return this.nominaService.actualizarDetalleConcepto(id_detalle_concepto, dto, id_usuario);
   }
 
   @Delete('conceptos/:id')
@@ -144,5 +149,13 @@ export class NominaController {
   @UseGuards(NominaEditableGuard)
   async recalcular(@Param('id', ParseIntPipe) id: number) {
     return this.nominaService.recalcularNomina(id);
+  }
+
+  // __________________Historial_Ajuste_Nomina__________________
+
+  @Get(':id/ajustes')
+  @Roles('admin', 'UserRH')
+  async historialNomina(@Param('id', ParseIntPipe) id_nomina: number) {
+    return this.nominaService.historialNomina(id_nomina);
   }
 }
