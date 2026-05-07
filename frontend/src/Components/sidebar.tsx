@@ -1,9 +1,7 @@
+import { NavLink, useNavigate } from 'react-router-dom';
 const links = [
-  'Dashboard',
-  'Empleados',
-  'Nómina',
-  'Expedientes',
-  'Reportes',
+  { to: '/', label: 'Dashboard' },
+  { to: '/empleados', label: 'Empleados' },
 ];
 
 export default function Sidebar() {
@@ -15,20 +13,23 @@ export default function Sidebar() {
       </div>
 
       <nav className="space-y-2">
-        {links.map((label, index) => (
-          <button
-            key={label}
-            className={`block w-full rounded-xl px-4 py-3 text-left text-sm font-medium transition ${
-              index === 0
-                ? 'bg-blue-600 text-white'
-                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-            }`}
+        {links.map((link) => (
+          <NavLink
+            key={link.to}
+            to={link.to}
+            className={({ isActive }) =>
+              `block rounded-xl px-4 py-3 text-sm font-medium transition ${
+                isActive
+                  ? 'bg-blue-600 text-white'
+                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+              }`
+            }
           >
-            {label}
-          </button>
+            {link.label}
+          </NavLink>
         ))}
       </nav>
-
+      
       <button
         className="mt-8 w-full rounded-xl bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-400 transition hover:bg-red-500/20"
       >
