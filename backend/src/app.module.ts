@@ -11,6 +11,7 @@ import { ConceptoNominaModule } from './concepto-nomina/concepto-nomina.module';
 import { TipoDocumentoAcademicoModule } from './tipo_documento_academico/tipo_documento_academico.module';
 import { ExpedienteModule } from './expediente/expediente.module';
 import { ValidacionExpedienteModule } from './validacion-expediente/validacion-expediente.module';
+import { ReportesModule } from './reportes/reportes.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { ValidacionExpedienteModule } from './validacion-expediente/validacion-e
     TipoDocumentoAcademicoModule,
     ExpedienteModule,
     ValidacionExpedienteModule,
+    ReportesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
