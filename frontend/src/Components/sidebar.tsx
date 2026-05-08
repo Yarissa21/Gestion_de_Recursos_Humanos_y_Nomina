@@ -2,6 +2,8 @@ import { NavLink, useNavigate } from 'react-router-dom';
 const links = [
   { to: '/', label: 'Dashboard' },
   { to: '/empleados', label: 'Empleados' },
+  { to: '/reporte', label: 'Reporte' },
+  { to: '/academico', label: 'Academico' },
 ];
 
 export default function Sidebar() {

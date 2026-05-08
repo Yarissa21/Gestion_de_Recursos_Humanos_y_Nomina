@@ -1,6 +1,8 @@
 import Sidebar from './Components/sidebar';
 import Dashboard from './Pages/Dashboard';
 import Empleados from './Pages/Empleados';
+import Academico from './Pages/Academico';
+import Reporte from './Pages/Reporte';
 
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
@@ -14,6 +16,8 @@ function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/empleados" element={<Empleados />} />
+            <Route path="/academico" element={<Academico />} />
+            <Route path="/reporte" element={<Reporte />} />
           </Routes>
         </main>
       </div>
