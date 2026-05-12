@@ -19,6 +19,18 @@ model Departamento {
   eliminado           Boolean    @default(false)
 
   empleados Empleado[]
+  puestos    PuestoTrabajo[]
+}
+
+model PuestoTrabajo {
+  id_puesto          Int          @id @default(autoincrement())
+  nombre_puesto      String
+  eliminado          Boolean      @default(false)
+
+  id_departamento    Int
+  departamento       Departamento @relation(fields: [id_departamento], references: [id_departamento])
+
+  empleados Empleado[]
 }
 
 model Empleado {
@@ -29,12 +41,16 @@ model Empleado {
   fecha_nacimiento  DateTime
   direccion         String
   telefono          String
+  correo            String?      @unique
   salario           Float
   estado            EstadoEmpleado @default(Activo)
   eliminado         Boolean @default(false)
 
   id_departamento Int
   departamento    Departamento @relation(fields: [id_departamento], references: [id_departamento])
+
+  id_puesto         Int?
+  puesto            PuestoTrabajo? @relation(fields: [id_puesto], references: [id_puesto])
 
   academicos InformacionAcademica[]
   documentos DocumentoExpediente[]
