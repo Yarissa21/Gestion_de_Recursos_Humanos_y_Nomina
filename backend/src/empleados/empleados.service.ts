@@ -19,6 +19,14 @@ export class EmpleadosService {
       );
     }
 
+    const puesto = await this.prisma.puestoTrabajo.findUnique({
+      where: { id_puesto: data.id_puesto },
+    });
+
+    if (!puesto || puesto.id_departamento !== data.id_departamento) {
+      throw new BadRequestException('El puesto no pertenece al departamento seleccionado');
+    }
+
     return this.prisma.empleado.create({ data });
   }
 
@@ -36,6 +44,15 @@ export class EmpleadosService {
     });
     if (!empleado) {
       throw new NotFoundException(`Empleado con id ${id} no existe`);
+    }
+
+    if (data.id_puesto && data.id_departamento) {
+      const puesto = await this.prisma.puestoTrabajo.findUnique({
+        where: { id_puesto: data.id_puesto },
+      });
+      if (!puesto || puesto.id_departamento !== data.id_departamento) {
+        throw new BadRequestException('El puesto no pertenece al departamento seleccionado');
+      }
     }
 
     return this.prisma.empleado.update({
