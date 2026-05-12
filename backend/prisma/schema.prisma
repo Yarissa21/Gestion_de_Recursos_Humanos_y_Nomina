@@ -41,7 +41,7 @@ model Empleado {
   fecha_nacimiento  DateTime
   direccion         String
   telefono          String
-  correo            String?      @unique
+  correo            String      @unique
   salario           Float
   estado            EstadoEmpleado @default(Activo)
   eliminado         Boolean @default(false)
@@ -49,8 +49,8 @@ model Empleado {
   id_departamento Int
   departamento    Departamento @relation(fields: [id_departamento], references: [id_departamento])
 
-  id_puesto         Int?
-  puesto            PuestoTrabajo? @relation(fields: [id_puesto], references: [id_puesto])
+  id_puesto         Int
+  puesto            PuestoTrabajo @relation(fields: [id_puesto], references: [id_puesto])
 
   academicos InformacionAcademica[]
   documentos DocumentoExpediente[]
