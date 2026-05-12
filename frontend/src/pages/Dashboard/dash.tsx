@@ -14,23 +14,23 @@ export default function Dashboard() {
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
 
   useEffect(() => {
-    fetch("http://localhost:3001/api/usuarios")
+    fetch("http://localhost:3000/api/usuarios")
       .then(res => res.json())
       .then(data => setUsuarios(data.total));
 
-    fetch("http://localhost:3001/api/nominas")
+    fetch("http://localhost:3000/nominas")
       .then(res => res.json())
       .then(data => setNominas(data.total));
 
-    fetch("http://localhost:3001/api/areas")
+    fetch("http://localhost:3000/api/areas")
       .then(res => res.json())
       .then(data => setAreas(data.total));
 
-    fetch("http://localhost:3001/api/documentos")
+    fetch("http://localhost:3000/documentos")
       .then(res => res.json())
       .then(data => setDocumentos(data.total));
 
-    fetch("http://localhost:3001/api/empleados")
+    fetch("http://localhost:3000/empleados")
       .then(res => res.json())
       .then(data => setEmpleados(data));
   }, []);
