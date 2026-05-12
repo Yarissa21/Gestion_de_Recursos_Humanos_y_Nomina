@@ -21,30 +21,37 @@ export default function Login() {
       const data = await response.json();
       localStorage.setItem("token", data.access_token);
 
-      // Redirigir al dashboard
-      navigate("/Dashboard/dash");
+      // ✅ Redirigir al dashboard
+      navigate("/dashboard");
     } catch (error: any) {
       alert("Error en login: " + error.message);
     }
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: "50px" }}>
-      <h1>Pantalla de Login</h1>
-      <form onSubmit={handleSubmit}>
+    <div className="flex flex-col items-center mt-12">
+      <h1 className="text-2xl font-bold mb-4">Pantalla de Login</h1>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3 w-64">
         <input
           type="text"
           placeholder="Nombre de usuario"
           value={nombre}
           onChange={(e) => setNombre(e.target.value)}
+          className="border p-2 rounded"
         />
         <input
           type="password"
           placeholder="Contraseña"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          className="border p-2 rounded"
         />
-        <button type="submit">Ingresar</button>
+        <button
+          type="submit"
+          className="bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
+        >
+          Ingresar
+        </button>
       </form>
     </div>
   );

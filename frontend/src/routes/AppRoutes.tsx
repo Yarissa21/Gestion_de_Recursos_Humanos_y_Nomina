@@ -6,10 +6,7 @@ export default function AppRoutes() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Redirige la raíz hacia /login */}
         <Route path="/" element={<Navigate to="/login" replace />} />
-
-        {/* Rutas principales */}
         <Route path="/login" element={<Login />} />
         <Route path="/dashboard" element={<Dashboard />} />
       </Routes>
