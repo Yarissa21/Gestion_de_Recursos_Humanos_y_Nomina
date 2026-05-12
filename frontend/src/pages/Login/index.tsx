@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 export default function Login() {
   const [nombre, setNombre] = useState("");
   const [password, setPassword] = useState("");
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -11,20 +13,16 @@ export default function Login() {
       const response = await fetch("http://localhost:3000/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombre, password }), // 'nombre'
+        body: JSON.stringify({ nombre, password }),
       });
 
-      if (!response.ok) {
-        throw new Error("Credenciales inválidas");
-      }
+      if (!response.ok) throw new Error("Credenciales inválidas");
 
       const data = await response.json();
-
-      // Guardar token en localStorage
       localStorage.setItem("token", data.access_token);
 
       // Redirigir al dashboard
-      window.location.href = "/dashboard";
+      navigate("/Dashboard/dash");
     } catch (error: any) {
       alert("Error en login: " + error.message);
     }
