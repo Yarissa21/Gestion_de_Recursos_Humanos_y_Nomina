@@ -1,7 +1,6 @@
 {
   "name": "backend",
   "version": "0.0.1",
-  "type": "module",
   "description": "",
   "author": "",
   "private": true,
@@ -53,6 +52,7 @@
     "@types/jest": "^30.0.0",
     "@types/multer": "^2.1.0",
     "@types/node": "^22.19.17",
+    "@types/passport-jwt": "^4.0.1",
     "@types/pdfmake": "^0.3.2",
     "@types/supertest": "^6.0.2",
     "eslint": "^9.18.0",
@@ -76,7 +76,7 @@
       "json",
       "ts"
     ],
-    "rootDir": "src",
+    "rootDir": "/",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
