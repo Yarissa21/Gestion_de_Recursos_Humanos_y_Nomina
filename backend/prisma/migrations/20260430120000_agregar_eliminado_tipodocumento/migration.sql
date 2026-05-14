@@ -1,0 +1,1 @@
+ALTER TABLE "TipoDocumento" ADD COLUMN "eliminado" BOOLEAN NOT NULL DEFAULT false;

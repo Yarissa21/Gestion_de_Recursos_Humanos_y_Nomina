@@ -12,6 +12,7 @@ import { TipoDocumentoAcademicoModule } from './tipo_documento_academico/tipo_do
 import { ExpedienteModule } from './expediente/expediente.module';
 import { ValidacionExpedienteModule } from './validacion-expediente/validacion-expediente.module';
 import { ReportesModule } from './reportes/reportes.module';
+import { PuestoTrabajoModule } from './puesto-trabajo/puesto-trabajo.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { ReportesModule } from './reportes/reportes.module';
     ExpedienteModule,
     ValidacionExpedienteModule,
     ReportesModule,
+    PuestoTrabajoModule,
   ],
   controllers: [AppController],
   providers: [AppService],

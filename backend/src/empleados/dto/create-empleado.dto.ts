@@ -5,6 +5,9 @@ import {
   IsNumber,
   IsNotEmpty,
   IsEnum,
+  IsEmail,
+  Matches,
+  Min,
 } from 'class-validator';
 import { EstadoEmpleado } from '@prisma/client';
 
@@ -18,7 +21,7 @@ export class CreateEmpleadoDto {
   apellido_empleado!: string;
 
   @IsString()
-  @IsNotEmpty({ message: 'El DPI es obligatorio' })
+  @Matches(/^\d{13}$/, { message: 'El DPI debe tener exactamente 13 dígitos' })
   dpi!: string;
 
   @IsDateString()
@@ -28,9 +31,14 @@ export class CreateEmpleadoDto {
   direccion!: string;
 
   @IsString()
+  @Matches(/^\d{8}$/, { message: 'El teléfono debe tener 8 dígitos válidos' })
   telefono!: string;
 
+  @IsEmail({}, { message: 'Debe ser un correo válido' })
+  correo!: string;
+
   @IsNumber()
+  @Min(0, { message: 'El salario debe ser mayor o igual a 0' })
   salario!: number;
 
   @IsEnum(EstadoEmpleado, {
@@ -40,4 +48,7 @@ export class CreateEmpleadoDto {
 
   @IsInt()
   id_departamento!: number;
+
+  @IsInt()
+  id_puesto!: number;
 }
