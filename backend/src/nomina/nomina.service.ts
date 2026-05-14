@@ -264,31 +264,52 @@ export class NominaService {
 
     const resultados: any[] = [];
     for (const detalle of detallesActualizados) {
-      const horasTrabajadas = detalle.horas_trabajadas ?? 0;
-      const horasExtra = detalle.horas_extra ?? 0;
+      let horasTrabajadas = detalle.horas_trabajadas ?? 0;
+      let horasExtra = detalle.horas_extra ?? 0;
 
-      let referenciaHoras = 160;
+      let referenciaHoras = 240; 
       if (nomina.tipo === 'Quincenal') {
-        referenciaHoras = 80;
+        referenciaHoras = 120; 
       }
 
-      const tarifaHora = detalle.salario_base / referenciaHoras;
-      const pagoHorasNormales = horasTrabajadas * tarifaHora;
-      const pagoHorasExtra = horasExtra * tarifaHora * 1.5;
+      if (horasTrabajadas > referenciaHoras) {
+        const excedente = horasTrabajadas - referenciaHoras;
+        horasTrabajadas = referenciaHoras;
+        horasExtra += excedente;
+      }
 
-      const bonificaciones = detalle.conceptos
+      if (horasTrabajadas < referenciaHoras && horasExtra > 0) {
+        const faltantes = referenciaHoras - horasTrabajadas;
+        const usadasDeExtra = Math.min(faltantes, horasExtra);
+
+        horasTrabajadas += usadasDeExtra;
+        horasExtra -= usadasDeExtra;
+      }
+
+      const tarifaHora = detalle.salario_base / 240;
+
+      const pagoHorasNormales = Math.round(horasTrabajadas * tarifaHora * 100) / 100;
+      const pagoHorasExtra = Math.round(horasExtra * tarifaHora * 1.5 * 100) / 100;
+
+      const bonificaciones = Math.round(detalle.conceptos
         .filter(c => c.concepto.tipo === 'Bonificacion' || c.concepto.tipo === 'Comision')
-        .reduce((sum, c) => sum + c.monto, 0);
+        .reduce((sum, c) => sum + c.monto, 0) * 100) / 100;
 
-      const deducciones = detalle.conceptos
+      const deducciones = Math.round(detalle.conceptos
         .filter(c => c.concepto.tipo === 'Deduccion' || c.concepto.tipo === 'Descuento')
-        .reduce((sum, c) => sum + c.monto, 0);
+        .reduce((sum, c) => sum + c.monto, 0) * 100) / 100;
 
-      const total = pagoHorasNormales + pagoHorasExtra + bonificaciones - deducciones;
+      const total = Math.round((pagoHorasNormales + pagoHorasExtra + bonificaciones - deducciones) * 100) / 100;
 
       await this.prisma.detalleNomina.update({
         where: { id_detalle: detalle.id_detalle },
-        data: { total_liquido: total },
+        data: { 
+          horas_trabajadas: horasTrabajadas,
+          horas_extra: horasExtra,
+          pago_horas_normales: pagoHorasNormales,
+          pago_horas_extra: pagoHorasExtra,
+          total_liquido: total
+        },
       });
 
       resultados.push({
