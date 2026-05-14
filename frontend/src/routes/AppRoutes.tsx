@@ -3,7 +3,7 @@ import Login from "../pages/Login/index";
 import Dashboard from "../pages/Dashboard/dash";
 import MiPerfil from "../pages/Dashboard/miPerfil";
 import ConfiguracionAreas from "../pages/Dashboard/configuracionAreas";
-import Nomina from "../pages/Dashboard/nomin";
+import Nomina from "../pages/Dashboard/nomina";
 
 export default function AppRoutes() {
   return (

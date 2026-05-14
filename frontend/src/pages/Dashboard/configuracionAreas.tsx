@@ -31,12 +31,7 @@ export default function ConfiguracionAreas() {
     const nuevaArea = { nombre: nombreArea, documentos };
     setAreas([...areas, nuevaArea]);
 
-    // Si tienes backend:
-    // await fetch("http://localhost:3000/api/areas", {
-    //   method: "POST",
-    //   headers: { "Content-Type": "application/json" },
-    //   body: JSON.stringify(nuevaArea),
-    // });
+   
 
     setNombreArea("");
     setDocumentos([]);
@@ -45,7 +40,7 @@ export default function ConfiguracionAreas() {
   return (
     <div className="max-w-5xl mx-auto mt-12 bg-gray-50 min-h-screen text-gray-800 font-sans">
       <h1 className="text-4xl font-bold mb-8 flex items-center gap-3">
-        <span className="text-blue-600 text-3xl">⚙️</span> Configuración de Áreas
+        <span className="text-blue-600 text-3xl"></span> Configuración de Áreas
       </h1>
 
       <div className="bg-white p-6 rounded-xl shadow-sm">

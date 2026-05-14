@@ -13,7 +13,7 @@ export default function MiPerfil() {
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-sm mt-12">
-      <h2 className="text-2xl font-bold mb-4">👤 Mi Perfil</h2>
+      <h2 className="text-2xl font-bold mb-4"> Mi Perfil</h2>
 
       {/* Información del usuario */}
       <div className="mb-6">

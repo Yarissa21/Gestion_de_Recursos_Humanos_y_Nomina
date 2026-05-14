@@ -23,9 +23,9 @@ export default function Dashboard() {
         .then(res => res.json())
         .then(data => setUsuarios(data.total));
 
-      fetch("http://localhost:3000/nominas")
+      fetch("http://localhost:3000/nomina")
         .then(res => res.json())
-        .then(data => setNominas(data.total));
+        .then(data => setNominas(data.length));
 
       fetch("http://localhost:3000/api/areas")
         .then(res => res.json())
@@ -43,9 +43,9 @@ export default function Dashboard() {
     }
 
     if (rol === "user") {
-      fetch("http://localhost:3000/nominas")
+      fetch("http://localhost:3000/nomina")
         .then(res => res.json())
-        .then(data => setNominas(data.total));
+        .then(data => setNominas(data.length)); 
     }
   }, [rol]);
 
