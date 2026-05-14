@@ -20,6 +20,8 @@ export default function Login() {
 
       const data = await response.json();
       localStorage.setItem("token", data.access_token);
+      localStorage.setItem("rol", data.usuario.rol);
+      localStorage.setItem("nombre",data.usuario.nombre);
 
       // ✅ Redirigir al dashboard
       navigate("/dashboard");
