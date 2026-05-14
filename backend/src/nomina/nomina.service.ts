@@ -87,14 +87,23 @@ export class NominaService {
   }
 
   private calcularMontoConcepto(concepto: any, salario_base: number): number {
-    switch (concepto.nombre) {
-      case 'IGSS':
-        return salario_base * 0.0483; 
-      case 'ISR':
-        return salario_base * 0.05;   
-      default:
-        return 0; 
+    const hoy = new Date();
+
+    if (concepto.porcentaje) {
+      return salario_base * concepto.porcentaje;
     }
+
+    if (concepto.monto_fijo) {
+      return concepto.monto_fijo;
+    }
+
+    if (concepto.fecha_aplica) {
+      if (concepto.fecha_aplica.getMonth() === hoy.getMonth()) {
+        return salario_base; 
+      }
+    }
+
+    return 0;
   }
 
   private async aplicarConceptosAutomaticos(id_detalle: number, salario_base: number) {
@@ -233,8 +242,14 @@ export class NominaService {
       const idsExistentes = detalle.conceptos.map(c => c.id_concepto);
 
       for (const concepto of conceptosCatalogo) {
-        if (!idsExistentes.includes(concepto.id_concepto)) {
-          const monto = this.calcularMontoConcepto(concepto, detalle.salario_base);
+        const monto = this.calcularMontoConcepto(concepto, detalle.salario_base);
+
+        if (idsExistentes.includes(concepto.id_concepto)) {
+          await this.prisma.detalleConceptoNomina.updateMany({
+            where: { id_detalle: detalle.id_detalle, id_concepto: concepto.id_concepto },
+            data: { monto },
+          });
+        } else {
           await this.prisma.detalleConceptoNomina.create({
             data: { monto, id_detalle: detalle.id_detalle, id_concepto: concepto.id_concepto },
           });
@@ -242,11 +257,24 @@ export class NominaService {
       }
     }
 
+    const detallesActualizados = await this.prisma.detalleNomina.findMany({
+      where: { id_nomina: nomina.id_nomina, eliminado: false },
+      include: { conceptos: { include: { concepto: true } } },
+    });
+
     const resultados: any[] = [];
-    for (const detalle of nomina.detalles) {
-      const tarifaHora = detalle.salario_base / 160;
-      let pagoHorasNormales = nomina.tipo === 'Quincenal' ? detalle.salario_base / 2 : detalle.salario_base;
-      const pagoHorasExtra = detalle.horas_extra * tarifaHora * 1.5;
+    for (const detalle of detallesActualizados) {
+      const horasTrabajadas = detalle.horas_trabajadas ?? 0;
+      const horasExtra = detalle.horas_extra ?? 0;
+
+      let referenciaHoras = 160;
+      if (nomina.tipo === 'Quincenal') {
+        referenciaHoras = 80;
+      }
+
+      const tarifaHora = detalle.salario_base / referenciaHoras;
+      const pagoHorasNormales = horasTrabajadas * tarifaHora;
+      const pagoHorasExtra = horasExtra * tarifaHora * 1.5;
 
       const bonificaciones = detalle.conceptos
         .filter(c => c.concepto.tipo === 'Bonificacion' || c.concepto.tipo === 'Comision')
@@ -266,8 +294,8 @@ export class NominaService {
       resultados.push({
         empleado: detalle.id_empleado,
         salario_base: detalle.salario_base,
-        horas_trabajadas: detalle.horas_trabajadas,
-        horas_extra: detalle.horas_extra,
+        horas_trabajadas: horasTrabajadas,
+        horas_extra: horasExtra,
         pagoHorasNormales,
         pagoHorasExtra,
         bonificaciones,

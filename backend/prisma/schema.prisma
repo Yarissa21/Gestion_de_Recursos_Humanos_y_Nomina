@@ -189,6 +189,9 @@ model ConceptoNomina {
   id_concepto Int    @id @default(autoincrement())
   nombre      String
   tipo        String
+  porcentaje    Float?              
+  monto_fijo    Float?              
+  fecha_aplica  DateTime?
   eliminado Boolean @default(false)
 
   detalles DetalleConceptoNomina[]
