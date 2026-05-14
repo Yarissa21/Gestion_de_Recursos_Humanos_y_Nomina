@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import Header from "../../components/Header";
 
 interface Nomina {
   id_nomina: number;
@@ -10,24 +11,19 @@ interface Nomina {
 
 export default function Nomina() {
   const [periodo, setPeriodo] = useState("");
-  const [tipo, setTipo] = useState("Mensual"); 
+  const [tipo, setTipo] = useState("Mensual");
   const [nominas, setNominas] = useState<Nomina[]>([]);
+  const token = localStorage.getItem("token");
 
-  const token = localStorage.getItem("token"); 
-
-  // Cargar nóminas existentes
   useEffect(() => {
     fetch("http://localhost:3000/nomina", {
-      headers: {
-        "Authorization": `Bearer ${token}`
-      }
+      headers: { "Authorization": `Bearer ${token}` }
     })
       .then(res => res.json())
       .then(data => setNominas(data))
       .catch(() => setNominas([]));
   }, [token]);
 
-  // Crear nueva nómina
   const handleCrearNomina = async () => {
     if (!periodo.trim()) {
       alert("Por favor, ingresa el periodo de la nómina.");
@@ -51,76 +47,74 @@ export default function Nomina() {
       const data = await res.json();
       setNominas([...nominas, data]);
       setPeriodo("");
-    } catch (error) {
+    } catch {
       alert("No se pudo crear la nómina.");
     }
   };
 
   return (
-    <div className="max-w-5xl mx-auto mt-12 bg-gray-50 min-h-screen text-gray-800 font-sans">
-      <h1 className="text-4xl font-bold mb-8 flex items-center gap-3">
-        <span className="text-green-600 text-3xl"></span> Gestión de Nómina
-      </h1>
+    <div className="bg-gray-50 min-h-screen text-gray-800 font-sans">
+      <Header rol={localStorage.getItem("rol")?.toLowerCase() || "sin rol"} nombre={localStorage.getItem("nombre") || "Usuario"} />
 
-      {/* Crear nueva nómina */}
-      <div className="bg-white p-6 rounded-xl shadow-sm mb-8">
-        <h2 className="text-xl font-semibold mb-4">Generar Nueva Nómina</h2>
-        <div className="flex gap-4 items-center">
-          <input
-            type="text"
-            placeholder="Periodo (Ej: Abril 2026)"
-            value={periodo}
-            onChange={(e) => setPeriodo(e.target.value)}
-            className="border rounded-md w-full p-2"
-          />
-          <select
-            value={tipo}
-            onChange={(e) => setTipo(e.target.value)}
-            className="border rounded-md p-2"
-          >
-            <option value="Mensual">Mensual</option>
-            <option value="Quincenal">Quincenal</option>
-          </select>
-          <button
-            onClick={handleCrearNomina}
-            className="bg-green-600 text-white px-5 py-2 rounded-md hover:bg-green-700 transition"
-          >
-            + Generar Nómina
-          </button>
+      <main className="max-w-5xl mx-auto mt-12">
+        <h1 className="text-4xl font-bold mb-8 flex items-center gap-3">Gestión de Nómina</h1>
+
+        <div className="bg-white p-6 rounded-xl shadow-sm mb-8">
+          <h2 className="text-xl font-semibold mb-4">Generar Nueva Nómina</h2>
+          <div className="flex gap-4 items-center">
+            <input
+              type="text"
+              placeholder="Periodo (Ej: Abril 2026)"
+              value={periodo}
+              onChange={(e) => setPeriodo(e.target.value)}
+              className="border rounded-md w-full p-2"
+            />
+            <select
+              value={tipo}
+              onChange={(e) => setTipo(e.target.value)}
+              className="border rounded-md p-2"
+            >
+              <option value="Mensual">Mensual</option>
+              <option value="Quincenal">Quincenal</option>
+            </select>
+            <button
+              onClick={handleCrearNomina}
+              className="bg-green-600 text-white px-5 py-2 rounded-md hover:bg-green-700 transition"
+            >
+              + Generar Nómina
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* Lista de nóminas */}
-      <div className="bg-white p-6 rounded-xl shadow-sm">
-        {nominas.length === 0 ? (
-          <p className="text-center text-gray-500">No hay nóminas generadas</p>
-        ) : (
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="p-2 text-left">ID</th>
-                <th className="p-2 text-left">Periodo</th>
-                <th className="p-2 text-left">Tipo</th>
-                <th className="p-2 text-left">Estado</th>
-                <th className="p-2 text-left">Fecha Creación</th>
-              </tr>
-            </thead>
-            <tbody>
-              {nominas.map((n) => (
-                <tr key={n.id_nomina} className="border-t">
-                  <td className="p-2">{n.id_nomina}</td>
-                  <td className="p-2">{n.periodo}</td>
-                  <td className="p-2">{n.tipo}</td>
-                  <td className="p-2">{n.estado}</td>
-                  <td className="p-2">
-                    {n.fecha_creacion ? new Date(n.fecha_creacion).toLocaleString() : ""}
-                  </td>
+        <div className="bg-white p-6 rounded-xl shadow-sm">
+          {nominas.length === 0 ? (
+            <p className="text-center text-gray-500">No hay nóminas generadas</p>
+          ) : (
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="p-2 text-left">ID</th>
+                  <th className="p-2 text-left">Periodo</th>
+                  <th className="p-2 text-left">Tipo</th>
+                  <th className="p-2 text-left">Estado</th>
+                  <th className="p-2 text-left">Fecha Creación</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+              </thead>
+              <tbody>
+                {nominas.map((n) => (
+                  <tr key={n.id_nomina} className="border-t">
+                    <td className="p-2">{n.id_nomina}</td>
+                    <td className="p-2">{n.periodo}</td>
+                    <td className="p-2">{n.tipo}</td>
+                    <td className="p-2">{n.estado}</td>
+                    <td className="p-2">{n.fecha_creacion ? new Date(n.fecha_creacion).toLocaleString() : ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </main>
     </div>
   );
 }
