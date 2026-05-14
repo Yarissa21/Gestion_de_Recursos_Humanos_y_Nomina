@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 interface Empleado {
   id_empleado: number;
@@ -13,12 +14,10 @@ export default function Dashboard() {
   const [documentos, setDocumentos] = useState(0);
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
 
-  // 👇 Leemos rol y nombre desde localStorage
-  const rol = localStorage.getItem("rol")?.toLowerCase();
-  const nombre = localStorage.getItem("nombre");
+  const nombre = localStorage.getItem("nombre") || "Usuario";
+  const rol = localStorage.getItem("rol")?.toLowerCase() || "sin rol";
 
   useEffect(() => {
-    // Admin y RRHH pueden ver estadísticas
     if (rol === "admin" || rol === "userrh") {
       fetch("http://localhost:3000/api/usuarios")
         .then(res => res.json())
@@ -37,11 +36,16 @@ export default function Dashboard() {
         .then(data => setDocumentos(data.total));
     }
 
-    // Solo Admin puede ver empleados
     if (rol === "admin") {
       fetch("http://localhost:3000/empleados")
         .then(res => res.json())
         .then(data => setEmpleados(data));
+    }
+
+    if (rol === "user") {
+      fetch("http://localhost:3000/nominas")
+        .then(res => res.json())
+        .then(data => setNominas(data.total));
     }
   }, [rol]);
 
@@ -52,27 +56,32 @@ export default function Dashboard() {
         <div className="max-w-7xl mx-auto px-8 py-5 flex items-center justify-between">
           <h3 className="text-2xl font-bold">Sistema de RRHH</h3>
           <div className="flex items-center gap-8 px-4 py-3">
-            <a href="/dashboard" className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition">
+            <Link to="/dashboard" className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition">
               Dashboard
-            </a>
+            </Link>
             {rol === "admin" && (
               <>
-                <a href="/configuracion" className="px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100 transition">
+                <Link to="/configAreas" className="px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100 transition">
                   Configuración
-                </a>
-                <a href="/nomina" className="px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100 transition">
+                </Link>
+                <Link to="/nomina" className="px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100 transition">
                   Nómina
-                </a>
+                </Link>
               </>
             )}
             {rol === "userrh" && (
-              <a href="/nomina" className="px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100 transition">
+              <Link to="/nomina" className="px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100 transition">
                 Nómina
-              </a>
+              </Link>
             )}
-            <a href="/perfil" className="px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100 transition">
+            {rol === "user" && (
+              <Link to="/nomina" className="px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100 transition">
+                Nómina
+              </Link>
+            )}
+            <Link to="/miPerfil" className="px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100 transition">
               Mi Perfil
-            </a>
+            </Link>
             <button
               onClick={() => {
                 localStorage.clear();
@@ -112,6 +121,14 @@ export default function Dashboard() {
               <h2>Documentos</h2>
               <p className="text-4xl font-bold mt-3">{documentos}</p>
             </div>
+          </div>
+        )}
+
+        {/* Tarjeta de nóminas solo para User */}
+        {rol === "user" && (
+          <div className="card bg-white p-6 rounded-xl shadow-sm flex-1 min-w-[220px]">
+            <h2>Nóminas Generadas</h2>
+            <p className="text-4xl font-bold mt-3">{nominas}</p>
           </div>
         )}
 

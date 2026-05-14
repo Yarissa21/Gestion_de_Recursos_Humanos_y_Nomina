@@ -1,0 +1,42 @@
+import { useEffect, useState } from "react";
+
+export default function MiPerfil() {
+  const [documentos, setDocumentos] = useState([]);
+  const nombre = localStorage.getItem("nombre");
+  const rol = localStorage.getItem("rol")?.toUpperCase();
+
+  useEffect(() => {
+    fetch("http://localhost:3000/documentos")
+      .then(res => res.json())
+      .then(data => setDocumentos(data));
+  }, []);
+
+  return (
+    <div className="bg-white p-6 rounded-xl shadow-sm mt-12">
+      <h2 className="text-2xl font-bold mb-4">👤 Mi Perfil</h2>
+
+      {/* Información del usuario */}
+      <div className="mb-6">
+        <h3 className="font-semibold text-lg mb-2">Información del Usuario</h3>
+        <p><strong>Nombre:</strong> {nombre}</p>
+        <p><strong>Rol:</strong> <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-md">{rol}</span></p>
+      </div>
+
+      {/* Subir documento */}
+      <div className="mb-6">
+        <h3 className="font-semibold text-lg mb-2">Subir Documento</h3>
+        <div className="flex gap-4">
+          <select className="border rounded-md px-3 py-2 w-64">
+            <option>Seleccionar tipo de documento</option>
+            <option>Certificado académico</option>
+            <option>Expediente laboral</option>
+          </select>
+          <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition">
+            Subir
+          </button>
+        </div>
+      </div>
+     
+    </div>
+  );
+}
