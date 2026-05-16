@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateNominaDto } from './dto/create-nomina.dto';
 import { UpdateNominaDto } from './dto/update-nomina.dto';
@@ -11,6 +11,47 @@ export class NominaService {
   constructor(private prisma: PrismaService) {}
 
   async crearNomina(dto: CreateNominaDto) {
+    const hoy = new Date();
+    const meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+    const mesActual = meses[hoy.getMonth()];
+    const anioActual = hoy.getFullYear();
+    const diaHoy = hoy.getDate();
+    const ultimoDiaMes = new Date(anioActual, hoy.getMonth() + 1, 0).getDate();
+
+    if (dto.tipo === 'Mensual') {
+      const esperado = `${mesActual} ${anioActual}`;
+      if (dto.periodo !== esperado) {
+        throw new BadRequestException(`Solo se puede crear la nómina mensual de ${esperado}`);
+      }
+      const existente = await this.prisma.nomina.findFirst({
+        where: { periodo: dto.periodo, tipo: 'Mensual', eliminado: false },
+      });
+      if (existente) {
+        throw new BadRequestException('Ya existe una nómina mensual para este periodo');
+      }
+    }
+
+    if (dto.tipo === 'Quincenal') {
+      const primera = `Primera Quincena ${mesActual} ${anioActual}`;
+      const segunda = `Segunda Quincena ${mesActual} ${anioActual}`;
+
+      if (dto.periodo === primera && !(diaHoy >= 1 && diaHoy <= 15)) {
+        throw new BadRequestException(`La primera quincena solo puede crearse entre el 1 y el 15 de ${mesActual} ${anioActual}`);
+      }
+      if (dto.periodo === segunda && !(diaHoy >= 16 && diaHoy <= ultimoDiaMes)) {
+        throw new BadRequestException(`La segunda quincena solo puede crearse entre el 16 y el ${ultimoDiaMes} de ${mesActual} ${anioActual}`);
+      }
+      if (dto.periodo !== primera && dto.periodo !== segunda) {
+        throw new BadRequestException(`Las nóminas quincenales solo pueden ser "${primera}" o "${segunda}"`);
+      }
+      const existente = await this.prisma.nomina.findFirst({
+        where: { periodo: dto.periodo, tipo: 'Quincenal', eliminado: false },
+      });
+      if (existente) {
+        throw new BadRequestException('Ya existe una nómina quincenal para este periodo');
+      }
+    }
+
     const nomina = await this.prisma.nomina.create({
       data: {
         periodo: dto.periodo,
@@ -32,7 +73,6 @@ export class NominaService {
           id_empleado: empleado.id_empleado,
         },
       });
-
       await this.aplicarConceptosAutomaticos(detalle.id_detalle, detalle.salario_base);
     }
 
@@ -56,7 +96,52 @@ export class NominaService {
   }
 
   async actualizarNomina(id: number, dto: UpdateNominaDto) {
-    await this.obtenerNomina(id);
+    const nomina = await this.obtenerNomina(id);
+
+    const hoy = new Date();
+    const meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+    const mesActual = meses[hoy.getMonth()];
+    const anioActual = hoy.getFullYear();
+    const diaHoy = hoy.getDate();
+    const ultimoDiaMes = new Date(anioActual, hoy.getMonth() + 1, 0).getDate();
+
+    const tipoNomina = dto.tipo ?? nomina.tipo;
+    const periodoNomina = dto.periodo ?? nomina.periodo;
+
+    if (tipoNomina === 'Mensual') {
+      const esperado = `${mesActual} ${anioActual}`;
+      if (periodoNomina !== esperado) {
+        throw new BadRequestException(`El período para nómina mensual debe ser exactamente "${esperado}"`);
+      }
+      const existente = await this.prisma.nomina.findFirst({
+        where: { periodo: periodoNomina, tipo: 'Mensual', eliminado: false, NOT: { id_nomina: id } },
+      });
+      if (existente) {
+        throw new BadRequestException('Ya existe una nómina mensual para este periodo');
+      }
+    }
+
+    if (tipoNomina === 'Quincenal') {
+      const primera = `Primera Quincena ${mesActual} ${anioActual}`;
+      const segunda = `Segunda Quincena ${mesActual} ${anioActual}`;
+
+      if (periodoNomina === primera && !(diaHoy >= 1 && diaHoy <= 15)) {
+        throw new BadRequestException(`La primera quincena solo puede actualizarse entre el 1 y el 15 de ${mesActual} ${anioActual}`);
+      }
+      if (periodoNomina === segunda && !(diaHoy >= 16 && diaHoy <= ultimoDiaMes)) {
+        throw new BadRequestException(`La segunda quincena solo puede actualizarse entre el 16 y el ${ultimoDiaMes} de ${mesActual} ${anioActual}`);
+      }
+      if (periodoNomina !== primera && periodoNomina !== segunda) {
+        throw new BadRequestException(`El período para nómina quincenal debe ser "${primera}" o "${segunda}"`);
+      }
+      const existente = await this.prisma.nomina.findFirst({
+        where: { periodo: periodoNomina, tipo: 'Quincenal', eliminado: false, NOT: { id_nomina: id } },
+      });
+      if (existente) {
+        throw new BadRequestException('Ya existe una nómina quincenal para este periodo');
+      }
+    }
+
     return this.prisma.nomina.update({
       where: { id_nomina: id },
       data: dto,
