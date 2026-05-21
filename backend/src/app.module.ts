@@ -12,7 +12,8 @@ import { TipoDocumentoAcademicoModule } from './tipo_documento_academico/tipo_do
 import { ExpedienteModule } from './expediente/expediente.module';
 import { ValidacionExpedienteModule } from './validacion-expediente/validacion-expediente.module';
 import { ReportesModule } from './reportes/reportes.module';
-import { UsuariosModule } from './usuarios/usuarios.module'; // 👈 nuevo módulo
+import { UsuariosModule } from './usuarios/usuarios.module'; 
+import { PuestoTrabajoModule } from './puesto-trabajo/puesto-trabajo.module';
 
 @Module({
   imports: [
@@ -27,7 +28,8 @@ import { UsuariosModule } from './usuarios/usuarios.module'; // 👈 nuevo módu
     ExpedienteModule,
     ValidacionExpedienteModule,
     ReportesModule,
-    UsuariosModule, // 👈 agregado aquí
+    UsuariosModule, 
+    PuestoTrabajoModule,
   ],
   controllers: [AppController],
   providers: [AppService],
