@@ -23,7 +23,6 @@ export default function Login() {
       localStorage.setItem("rol", data.usuario.rol);
       localStorage.setItem("nombre",data.usuario.nombre);
 
-      // ✅ Redirigir al dashboard
       navigate("/dashboard");
     } catch (error: any) {
       alert("Error en login: " + error.message);
