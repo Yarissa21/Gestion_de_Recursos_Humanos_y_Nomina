@@ -17,9 +17,7 @@ import { UpdateNominaDto } from './dto/update-nomina.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
-import { CreateDetalleNominaDto } from './dto/create-detalle-nomina.dto';
 import { UpdateDetalleNominaDto } from './dto/update-detalle-nomina.dto';
-import { CreateDetalleConceptoDto } from './dto/create-detalle-concepto.dto';
 import { UpdateDetalleConceptoDto } from './dto/update-detalle-concepto.dto';
 import { UpdateEstadoNominaDto } from './dto/update-estado-nomina.dto';
 import { NominaEditableGuard } from '../nomina/nomina-editable.guard';
@@ -70,14 +68,6 @@ export class NominaController {
   }
 
   //_________________________Detalle Nomina______________________________
-  @Post(':id/detalles')
-  @UseGuards(NominaEditableGuard)
-  async crearDetalle(
-    @Param('id', ParseIntPipe) id_nomina: number,
-    @Body() dto: CreateDetalleNominaDto
-  ) {
-    return this.nominaService.crearDetalleNomina(id_nomina, dto);
-  }
 
   @Get(':id/detalles')
   async listarDetalles(@Param('id', ParseIntPipe) id_nomina: number) {
@@ -107,14 +97,6 @@ export class NominaController {
   }
 
   //________________________Detalle Concepto Nomina_______________________
-  @Post('detalles/:id/conceptos')
-  @UseGuards(NominaEditableGuard)
-  async crearDetalleConcepto(
-    @Param('id', ParseIntPipe) id_detalle: number,
-    @Body() dto: CreateDetalleConceptoDto
-  ) {
-    return this.nominaService.crearDetalleConcepto(id_detalle, dto);
-  }
 
   @Get('detalles/:id/conceptos')
   async listarDetalleConceptos(@Param('id', ParseIntPipe) id_detalle: number) {
