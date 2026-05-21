@@ -22,8 +22,24 @@
   "dependencies": {
     "@nestjs/common": "^11.0.1",
     "@nestjs/core": "^11.0.1",
-    "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/jwt": "^11.0.0",
+    "@nestjs/mapped-types": "^2.1.1",
+    "@nestjs/passport": "^11.0.0",
+    "@nestjs/platform-express": "^11.1.19",
+    "@prisma/client": "^6.19.3",
+    "@types/bcrypt": "^6.0.0",
+    "bcrypt": "^6.0.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
+    "dotenv": "^17.4.2",
+    "multer": "^2.1.1",
+    "passport": "^0.6.0",
+    "passport-jwt": "^4.0.1",
+    "pdfmake": "^0.2.23",
+    "pg": "^8.20.0",
+    "prisma": "^6.19.3",
     "reflect-metadata": "^0.2.2",
+    "roboto-font": "^0.1.0",
     "rxjs": "^7.8.1"
   },
   "devDependencies": {
@@ -32,9 +48,13 @@
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
+    "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
-    "@types/node": "^22.10.7",
+    "@types/multer": "^2.1.0",
+    "@types/node": "^22.19.17",
+    "@types/passport-jwt": "^4.0.1",
+    "@types/pdfmake": "^0.3.2",
     "@types/supertest": "^6.0.2",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
@@ -48,7 +68,7 @@
     "ts-loader": "^9.5.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.7.3",
+    "typescript": "^6.0.3",
     "typescript-eslint": "^8.20.0"
   },
   "jest": {
@@ -57,7 +77,7 @@
       "json",
       "ts"
     ],
-    "rootDir": "src",
+    "rootDir": "/",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
