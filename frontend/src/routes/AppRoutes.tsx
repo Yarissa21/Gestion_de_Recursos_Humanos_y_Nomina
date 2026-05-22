@@ -7,6 +7,7 @@ import Nomina from "../pages/Dashboard/nomina";
 import ProtectedRoute from "./ProtectedRoutes";
 import Puestos from "../pages/PuestosdeTrabajo/puestos";
 import Documentos from "../pages/Documentos/documentos";
+import Empleados from "../pages/Dashboard/usuarios";
 
 export default function AppRoutes() {
   return (
@@ -22,6 +23,7 @@ export default function AppRoutes() {
 
         <Route path="/puestos" element={<Puestos />} />
         <Route path="/documentos" element={<Documentos />} />
+        <Route path="/usuarios" element={<Empleados />} />
       </Routes>
     </BrowserRouter>
   );
