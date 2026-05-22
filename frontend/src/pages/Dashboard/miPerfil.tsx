@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import Header from "../../components/Header";
-
-const API_URL =
-  "https://gestion-de-recursos-humanos-y-nomina.onrender.com";
+import { fetchWithFallback } from "../../utils/api";
 
 export default function MiPerfil() {
   const [documentos, setDocumentos] = useState<any[]>([]);
@@ -16,11 +14,11 @@ export default function MiPerfil() {
     const token = localStorage.getItem("token");
     if (!token) return;
 
-    fetch(`${API_URL}/documentos`, {
-      headers: { Authorization: `Bearer ${token}` }
+    fetchWithFallback("/documentos", {
+      headers: { Authorization: `Bearer ${token}` },
     })
-      .then(res => res.json())
-      .then(data => setDocumentos(Array.isArray(data) ? data : []))
+      .then((res) => res.json())
+      .then((data) => setDocumentos(Array.isArray(data) ? data : []))
       .catch(() => setDocumentos([]));
   }, []);
 
@@ -29,7 +27,6 @@ export default function MiPerfil() {
       alert("Por favor selecciona un tipo de documento.");
       return;
     }
-
     alert(`Subiendo: ${tipoDocumento} — funcionalidad pendiente de backend.`);
   };
 
@@ -38,7 +35,6 @@ export default function MiPerfil() {
       <Header rol={rol} nombre={nombre} />
 
       <main className="max-w-4xl mx-auto px-6 mt-10">
-
         <div className="flex items-center gap-3 mb-8">
           <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
@@ -49,14 +45,11 @@ export default function MiPerfil() {
 
         <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
           <h2 className="text-lg font-semibold mb-4">Información del Usuario</h2>
-
           <p className="mb-2">
             <span className="font-medium">Nombre:</span> {nombre}
           </p>
-
           <p className="flex items-center gap-2">
             <span className="font-medium">Rol:</span>
-
             <span className="bg-blue-100 text-blue-700 text-sm px-3 py-1 rounded-full font-medium">
               {rolDisplay}
             </span>
@@ -65,7 +58,6 @@ export default function MiPerfil() {
 
         <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
           <h2 className="text-lg font-semibold mb-4">Subir Documento</h2>
-
           <div className="flex gap-4 items-center">
             <select
               value={tipoDocumento}
@@ -82,7 +74,6 @@ export default function MiPerfil() {
               <option value="Universitario">Universitario</option>
               <option value="Maestría">Maestría</option>
             </select>
-
             <button
               onClick={handleSubir}
               className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2 rounded-md hover:bg-blue-700 transition font-medium"
@@ -92,7 +83,6 @@ export default function MiPerfil() {
                 <polyline points="17 8 12 3 7 8" />
                 <line x1="12" y1="3" x2="12" y2="15" />
               </svg>
-
               Subir
             </button>
           </div>
@@ -100,29 +90,19 @@ export default function MiPerfil() {
 
         <div className="bg-white rounded-xl shadow-sm p-6">
           <h2 className="text-lg font-semibold mb-4">Mis Documentos</h2>
-
           {documentos.length === 0 ? (
-            <p className="text-gray-400 text-center py-6">
-              No has subido documentos
-            </p>
+            <p className="text-gray-400 text-center py-6">No has subido documentos</p>
           ) : (
             <ul className="divide-y">
               {documentos.map((doc: any, i: number) => (
-                <li
-                  key={i}
-                  className="py-3 flex justify-between items-center"
-                >
+                <li key={i} className="py-3 flex justify-between items-center">
                   <span>{doc.nombre || doc.tipo || "Documento"}</span>
-
-                  <span className="text-sm text-gray-400">
-                    {doc.fecha || ""}
-                  </span>
+                  <span className="text-sm text-gray-400">{doc.fecha || ""}</span>
                 </li>
               ))}
             </ul>
           )}
         </div>
-
       </main>
     </div>
   );

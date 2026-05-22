@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import Header from "../../components/Header";
-
-const API_URL =
-  "https://gestion-de-recursos-humanos-y-nomina.onrender.com";
+import { fetchWithFallback } from "../../utils/api";
 
 interface Empleado {
   id_empleado: number;
@@ -36,14 +34,14 @@ export default function Dashboard() {
     const headers = { Authorization: `Bearer ${token}` };
 
     if (rol === "admin" || rol === "userrh" || rol === "usuariorh") {
-      fetch(`${API_URL}/api/usuarios`, { headers })
-        .then(res => res.json())
-        .then(data => setUsuarios(data.total))
+      fetchWithFallback("/api/usuarios", { headers })
+        .then((res) => res.json())
+        .then((data) => setUsuarios(data.total))
         .catch(() => setUsuarios(0));
 
-      fetch(`${API_URL}/nomina`, { headers })
-        .then(res => res.json())
-        .then(data => {
+      fetchWithFallback("/nomina", { headers })
+        .then((res) => res.json())
+        .then((data) => {
           if (Array.isArray(data)) {
             setNominas(data.length);
             setNominasList(data.slice(0, 3));
@@ -56,16 +54,16 @@ export default function Dashboard() {
     }
 
     if (rol === "admin") {
-      fetch(`${API_URL}/empleados`, { headers })
-        .then(res => res.json())
-        .then(data => setEmpleados(Array.isArray(data) ? data : []))
+      fetchWithFallback("/empleados", { headers })
+        .then((res) => res.json())
+        .then((data) => setEmpleados(Array.isArray(data) ? data : []))
         .catch(() => setEmpleados([]));
     }
 
     if (rol === "user") {
-      fetch(`${API_URL}/nomina`, { headers })
-        .then(res => res.json())
-        .then(data => {
+      fetchWithFallback("/nomina", { headers })
+        .then((res) => res.json())
+        .then((data) => {
           if (Array.isArray(data)) {
             setNominas(data.length);
             setNominasList(data.slice(0, 3));
@@ -85,7 +83,6 @@ export default function Dashboard() {
 
         {(rol === "admin" || rol === "userrh" || rol === "usuariorh") && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-
             <div className="bg-white rounded-xl shadow-sm p-6 flex justify-between items-start">
               <div>
                 <p className="text-gray-500 text-sm mb-1">Total Usuarios</p>
@@ -163,14 +160,13 @@ export default function Dashboard() {
 
         {(rol === "admin" || rol === "userrh" || rol === "usuariorh") && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
             <div className="bg-white rounded-xl shadow-sm p-6">
               <h3 className="text-lg font-semibold mb-4">Últimas Nóminas</h3>
               {nominasList.length === 0 ? (
                 <p className="text-gray-400 text-center py-4">No hay nóminas generadas</p>
               ) : (
                 <ul className="divide-y">
-                  {nominasList.map(n => (
+                  {nominasList.map((n) => (
                     <li key={n.id_nomina} className="py-3 flex justify-between">
                       <span className="font-medium">{n.periodo}</span>
                       <span className={`text-sm px-2 py-1 rounded-full ${

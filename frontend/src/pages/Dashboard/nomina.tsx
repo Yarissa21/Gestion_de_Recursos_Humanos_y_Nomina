@@ -1,9 +1,7 @@
 import { useState, useEffect } from "react";
 import Header from "../../components/Header";
 import { isAdmin, isRH, isUser } from "../../utils/auth";
-
-const API_URL =
-  "https://gestion-de-recursos-humanos-y-nomina.onrender.com";
+import { fetchWithFallback } from "../../utils/api";
 
 interface Nomina {
   id_nomina: number;
@@ -25,16 +23,13 @@ export default function Nomina() {
   useEffect(() => {
     if (!token) return;
 
-    const url =
-      isAdmin() || isRH()
-        ? `${API_URL}/nomina`
-        : `${API_URL}/nomina/mis-nominas`;
+    const url = isAdmin() || isRH() ? "/nomina" : "/nomina/mis-nominas";
 
-    fetch(url, {
-      headers: { Authorization: `Bearer ${token}` }
+    fetchWithFallback(url, {
+      headers: { Authorization: `Bearer ${token}` },
     })
-      .then(res => res.json())
-      .then(data => setNominas(Array.isArray(data) ? data : []))
+      .then((res) => res.json())
+      .then((data) => setNominas(Array.isArray(data) ? data : []))
       .catch(() => setNominas([]));
   }, [token]);
 
@@ -45,11 +40,11 @@ export default function Nomina() {
     }
 
     try {
-      const res = await fetch(`${API_URL}/nomina`, {
+      const res = await fetchWithFallback("/nomina", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ periodo, tipo }),
       });
@@ -57,7 +52,6 @@ export default function Nomina() {
       if (!res.ok) throw new Error("Error al crear la nómina");
 
       const data = await res.json();
-
       setNominas([...nominas, data]);
       setPeriodo("");
     } catch {
@@ -70,22 +64,17 @@ export default function Nomina() {
       <Header rol={rol} nombre={nombre} />
 
       <main className="max-w-5xl mx-auto px-6 mt-10">
-
         <div className="flex items-center gap-3 mb-8">
           <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <line x1="12" y1="1" x2="12" y2="23" />
             <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
           </svg>
-
           <h1 className="text-3xl font-bold">Gestión de Nómina</h1>
         </div>
 
         {(isAdmin() || isRH()) && (
           <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-            <h2 className="text-lg font-semibold mb-4">
-              Generar Nueva Nómina
-            </h2>
-
+            <h2 className="text-lg font-semibold mb-4">Generar Nueva Nómina</h2>
             <div className="flex gap-4 items-center">
               <input
                 type="text"
@@ -94,7 +83,6 @@ export default function Nomina() {
                 onChange={(e) => setPeriodo(e.target.value)}
                 className="border border-gray-300 rounded-md flex-1 p-2 focus:outline-none focus:ring-2 focus:ring-green-500"
               />
-
               <select
                 value={tipo}
                 onChange={(e) => setTipo(e.target.value)}
@@ -103,7 +91,6 @@ export default function Nomina() {
                 <option value="Mensual">Mensual</option>
                 <option value="Quincenal">Quincenal</option>
               </select>
-
               <button
                 onClick={handleCrearNomina}
                 className="flex items-center gap-2 bg-green-600 text-white px-5 py-2 rounded-md hover:bg-green-700 transition font-medium"
@@ -112,7 +99,6 @@ export default function Nomina() {
                   <line x1="12" y1="5" x2="12" y2="19" />
                   <line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
-
                 Generar Nómina
               </button>
             </div>
@@ -122,9 +108,7 @@ export default function Nomina() {
         <div className="bg-white rounded-xl shadow-sm p-6">
           {nominas.length === 0 ? (
             <p className="text-center text-gray-400 py-6">
-              {isUser()
-                ? "No tienes nóminas registradas"
-                : "No hay nóminas generadas"}
+              {isUser() ? "No tienes nóminas registradas" : "No hay nóminas generadas"}
             </p>
           ) : (
             <table className="w-full border-collapse">
@@ -134,40 +118,26 @@ export default function Nomina() {
                   <th className="p-3 text-left font-medium">Periodo</th>
                   <th className="p-3 text-left font-medium">Tipo</th>
                   <th className="p-3 text-left font-medium">Estado</th>
-                  <th className="p-3 text-left font-medium">
-                    Fecha Creación
-                  </th>
+                  <th className="p-3 text-left font-medium">Fecha Creación</th>
                 </tr>
               </thead>
-
               <tbody>
                 {nominas.map((n) => (
-                  <tr
-                    key={n.id_nomina}
-                    className="border-t hover:bg-gray-50 transition"
-                  >
+                  <tr key={n.id_nomina} className="border-t hover:bg-gray-50 transition">
                     <td className="p-3">{n.id_nomina}</td>
-
                     <td className="p-3 font-medium">{n.periodo}</td>
-
                     <td className="p-3">{n.tipo}</td>
-
                     <td className="p-3">
-                      <span
-                        className={`text-sm px-2 py-1 rounded-full font-medium ${
-                          n.estado === "Procesada"
-                            ? "bg-green-100 text-green-700"
-                            : "bg-yellow-100 text-yellow-700"
-                        }`}
-                      >
+                      <span className={`text-sm px-2 py-1 rounded-full font-medium ${
+                        n.estado === "Procesada"
+                          ? "bg-green-100 text-green-700"
+                          : "bg-yellow-100 text-yellow-700"
+                      }`}>
                         {n.estado}
                       </span>
                     </td>
-
                     <td className="p-3 text-gray-500">
-                      {n.fecha_creacion
-                        ? new Date(n.fecha_creacion).toLocaleString()
-                        : ""}
+                      {n.fecha_creacion ? new Date(n.fecha_creacion).toLocaleString() : ""}
                     </td>
                   </tr>
                 ))}

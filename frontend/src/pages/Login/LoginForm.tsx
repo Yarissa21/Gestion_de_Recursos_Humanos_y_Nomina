@@ -1,7 +1,5 @@
 import React, { useState } from "react";
-
-const API_URL =
-  "https://gestion-de-recursos-humanos-y-nomina.onrender.com";
+import { fetchWithFallback } from "../../utils/api";
 
 export default function LoginForm() {
   const [email, setEmail] = useState("");
@@ -10,7 +8,7 @@ export default function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const response = await fetch(`${API_URL}/auth/login`, {
+    const response = await fetchWithFallback("/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),

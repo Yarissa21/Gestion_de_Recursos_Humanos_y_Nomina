@@ -2,9 +2,7 @@ import { useState } from "react";
 import { Navigate } from "react-router-dom";
 import Header from "../../components/Header";
 import { isAdmin } from "../../utils/auth";
-
-const API_URL =
-  "https://gestion-de-recursos-humanos-y-nomina.onrender.com";
+import { fetchWithFallback } from "../../utils/api";
 
 export default function ConfiguracionAreas() {
   if (!isAdmin()) return <Navigate to="/dashboard" replace />;
@@ -41,11 +39,9 @@ export default function ConfiguracionAreas() {
 
     const nuevaArea = { nombre: nombreArea, documentos };
 
-    await fetch(`${API_URL}/areas`, {
+    await fetchWithFallback("/areas", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(nuevaArea),
     });
 
@@ -59,8 +55,6 @@ export default function ConfiguracionAreas() {
       <Header rol={rol} nombre={nombre} />
 
       <main className="max-w-5xl mx-auto px-6 mt-10">
-
-        {/* Título */}
         <div className="flex items-center gap-3 mb-8">
           <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <circle cx="12" cy="12" r="3" />
@@ -69,7 +63,6 @@ export default function ConfiguracionAreas() {
           <h1 className="text-3xl font-bold">Configuración de Áreas</h1>
         </div>
 
-        {/* Formulario nueva área */}
         <div className="bg-white rounded-xl shadow-sm p-6 mb-8">
           <h2 className="text-lg font-semibold mb-4">Nueva Área</h2>
 
@@ -120,7 +113,6 @@ export default function ConfiguracionAreas() {
           </button>
         </div>
 
-        {/* Lista de áreas creadas */}
         {areas.length > 0 && (
           <div className="bg-white rounded-xl shadow-sm p-6">
             <h2 className="text-lg font-semibold mb-4">Áreas Creadas</h2>
@@ -142,7 +134,6 @@ export default function ConfiguracionAreas() {
             <p className="text-gray-400">No hay áreas creadas</p>
           </div>
         )}
-
       </main>
     </div>
   );
