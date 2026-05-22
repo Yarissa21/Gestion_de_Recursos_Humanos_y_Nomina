@@ -5,6 +5,8 @@ import MiPerfil from "../pages/Dashboard/miPerfil";
 import ConfiguracionAreas from "../pages/Dashboard/configuracionAreas";
 import Nomina from "../pages/Dashboard/nomina";
 import ProtectedRoute from "./ProtectedRoutes";
+import Puestos from "../pages/PuestosdeTrabajo/puestos";
+import Documentos from "../pages/Documentos/documentos";
 
 export default function AppRoutes() {
   return (
@@ -17,6 +19,9 @@ export default function AppRoutes() {
         <Route path="/configAreas" element={<ProtectedRoute><ConfiguracionAreas /></ProtectedRoute>} />
         <Route path="/nomina" element={<ProtectedRoute><Nomina /></ProtectedRoute>} />
         <Route path="/miPerfil" element={<ProtectedRoute><MiPerfil /></ProtectedRoute>} />
+
+        <Route path="/puestos" element={<Puestos />} />
+        <Route path="/documentos" element={<Documentos />} />
       </Routes>
     </BrowserRouter>
   );

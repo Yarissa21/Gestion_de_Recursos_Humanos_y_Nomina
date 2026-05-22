@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Header from "../../components/Header";
 import { fetchWithFallback } from "../../utils/api";
 
@@ -15,13 +16,22 @@ interface Nomina {
   estado?: string;
 }
 
+interface Departamento {
+  id_departamento: number;
+  nombre_departamento: string;
+}
+
 export default function Dashboard() {
+  const navigate = useNavigate();
+
   const [usuarios, setUsuarios] = useState(0);
   const [nominas, setNominas] = useState(0);
   const [nominasList, setNominasList] = useState<Nomina[]>([]);
   const [areas, setAreas] = useState(0);
   const [documentos, setDocumentos] = useState(0);
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
+  const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
+  const [loadingDeps, setLoadingDeps] = useState(true);
 
   const nombre = localStorage.getItem("nombre") || "Usuario";
   const rol = localStorage.getItem("rol")?.toLowerCase() || "sin rol";
@@ -50,7 +60,18 @@ export default function Dashboard() {
         .catch(() => setNominas(0));
 
       setAreas(0);
-      setDocumentos(0);
+
+      Promise.all([
+        fetchWithFallback("/expediente/documentos", { headers }).then((r) => r.json()),
+        fetchWithFallback("/academicos/documentos", { headers }).then((r) => r.json()),
+      ])
+        .then(([exp, acad]) => {
+          const total =
+            (Array.isArray(exp) ? exp.length : 0) +
+            (Array.isArray(acad) ? acad.length : 0);
+          setDocumentos(total);
+        })
+        .catch(() => setDocumentos(0));
     }
 
     if (rol === "admin") {
@@ -58,6 +79,12 @@ export default function Dashboard() {
         .then((res) => res.json())
         .then((data) => setEmpleados(Array.isArray(data) ? data : []))
         .catch(() => setEmpleados([]));
+
+      fetchWithFallback("/departamentos", { headers })
+        .then((res) => res.json())
+        .then((data) => setDepartamentos(Array.isArray(data) ? data : []))
+        .catch(() => setDepartamentos([]))
+        .finally(() => setLoadingDeps(false));
     }
 
     if (rol === "user") {
@@ -73,6 +100,15 @@ export default function Dashboard() {
     }
   }, [rol]);
 
+  const depColors = [
+    { border: "border-blue-200", bg: "bg-blue-50", text: "text-blue-700", dot: "bg-blue-400" },
+    { border: "border-emerald-200", bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-400" },
+    { border: "border-violet-200", bg: "bg-violet-50", text: "text-violet-700", dot: "bg-violet-400" },
+    { border: "border-amber-200", bg: "bg-amber-50", text: "text-amber-700", dot: "bg-amber-400" },
+    { border: "border-rose-200", bg: "bg-rose-50", text: "text-rose-700", dot: "bg-rose-400" },
+    { border: "border-cyan-200", bg: "bg-cyan-50", text: "text-cyan-700", dot: "bg-cyan-400" },
+  ];
+
   return (
     <div className="bg-gray-50 min-h-screen text-gray-800 font-sans">
       <Header rol={rol} nombre={nombre} />
@@ -83,7 +119,11 @@ export default function Dashboard() {
 
         {(rol === "admin" || rol === "userrh" || rol === "usuariorh") && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-            <div className="bg-white rounded-xl shadow-sm p-6 flex justify-between items-start">
+
+            <button
+              onClick={() => navigate("/usuarios")}
+              className="bg-white rounded-xl shadow-sm p-6 flex justify-between items-start text-left hover:shadow-md hover:-translate-y-0.5 transition w-full"
+            >
               <div>
                 <p className="text-gray-500 text-sm mb-1">Total Usuarios</p>
                 <p className="text-4xl font-bold">{usuarios}</p>
@@ -97,9 +137,12 @@ export default function Dashboard() {
                   <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                 </svg>
               </div>
-            </div>
+            </button>
 
-            <div className="bg-white rounded-xl shadow-sm p-6 flex justify-between items-start">
+            <button
+              onClick={() => navigate("/nomina")}
+              className="bg-white rounded-xl shadow-sm p-6 flex justify-between items-start text-left hover:shadow-md hover:-translate-y-0.5 transition w-full"
+            >
               <div>
                 <p className="text-gray-500 text-sm mb-1">Nóminas Generadas</p>
                 <p className="text-4xl font-bold">{nominas}</p>
@@ -111,12 +154,15 @@ export default function Dashboard() {
                   <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
                 </svg>
               </div>
-            </div>
+            </button>
 
-            <div className="bg-white rounded-xl shadow-sm p-6 flex justify-between items-start">
+            <button
+              onClick={() => navigate("/configAreas")}
+              className="bg-white rounded-xl shadow-sm p-6 flex justify-between items-start text-left hover:shadow-md hover:-translate-y-0.5 transition w-full"
+            >
               <div>
                 <p className="text-gray-500 text-sm mb-1">Áreas</p>
-                <p className="text-4xl font-bold">{areas}</p>
+                <p className="text-4xl font-bold">{departamentos.length}</p>
                 <p className="text-gray-400 text-sm mt-2">Configuradas en el sistema</p>
               </div>
               <div className="bg-purple-100 p-3 rounded-xl">
@@ -125,9 +171,12 @@ export default function Dashboard() {
                   <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
                 </svg>
               </div>
-            </div>
+            </button>
 
-            <div className="bg-white rounded-xl shadow-sm p-6 flex justify-between items-start">
+            <button
+              onClick={() => navigate("/documentos")}
+              className="bg-white rounded-xl shadow-sm p-6 flex justify-between items-start text-left hover:shadow-md hover:-translate-y-0.5 transition w-full"
+            >
               <div>
                 <p className="text-gray-500 text-sm mb-1">Documentos</p>
                 <p className="text-4xl font-bold">{documentos}</p>
@@ -138,7 +187,8 @@ export default function Dashboard() {
                   <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                 </svg>
               </div>
-            </div>
+            </button>
+
           </div>
         )}
 
@@ -160,8 +210,17 @@ export default function Dashboard() {
 
         {(rol === "admin" || rol === "userrh" || rol === "usuariorh") && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
             <div className="bg-white rounded-xl shadow-sm p-6">
-              <h3 className="text-lg font-semibold mb-4">Últimas Nóminas</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Últimas Nóminas</h3>
+                <button
+                  onClick={() => navigate("/nomina")}
+                  className="text-sm text-blue-600 hover:underline font-medium"
+                >
+                  Ver todas →
+                </button>
+              </div>
               {nominasList.length === 0 ? (
                 <p className="text-gray-400 text-center py-4">No hay nóminas generadas</p>
               ) : (
@@ -183,9 +242,58 @@ export default function Dashboard() {
             </div>
 
             <div className="bg-white rounded-xl shadow-sm p-6">
-              <h3 className="text-lg font-semibold mb-4">Áreas Configuradas</h3>
-              <p className="text-gray-400 text-center py-4">No hay áreas configuradas</p>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Áreas Configuradas</h3>
+                {rol === "admin" && (
+                  <button
+                    onClick={() => navigate("/configAreas")}
+                    className="text-sm text-blue-600 hover:underline font-medium"
+                  >
+                    Gestionar →
+                  </button>
+                )}
+              </div>
+
+              {loadingDeps ? (
+                <p className="text-gray-400 text-center py-4">Cargando...</p>
+              ) : departamentos.length === 0 ? (
+                <div className="text-center py-6">
+                  <p className="text-gray-400 mb-3">No hay áreas configuradas</p>
+                  {rol === "admin" && (
+                    <button
+                      onClick={() => navigate("/configAreas")}
+                      className="inline-flex items-center gap-2 bg-blue-600 text-white text-sm px-4 py-2 rounded-md hover:bg-blue-700 transition font-medium"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                      </svg>
+                      Crear departamento
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <ul className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                  {departamentos.map((dep, i) => {
+                    const color = depColors[i % depColors.length];
+                    return (
+                      <li
+                        key={dep.id_departamento}
+                        className={`flex items-center justify-between border ${color.border} ${color.bg} rounded-lg px-4 py-2.5`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className={`w-2 h-2 rounded-full ${color.dot}`} />
+                          <span className={`text-sm font-medium ${color.text}`}>
+                            {dep.nombre_departamento}
+                          </span>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
+
           </div>
         )}
       </main>
