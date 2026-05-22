@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+const API_URL =
+  "https://gestion-de-recursos-humanos-y-nomina.onrender.com";
+
 export default function Login() {
   const [nombre, setNombre] = useState("");
   const [password, setPassword] = useState("");
@@ -10,7 +13,7 @@ export default function Login() {
     e.preventDefault();
 
     try {
-      const response = await fetch("http://localhost:3000/auth/login", {
+      const response = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nombre, password }),
@@ -21,7 +24,7 @@ export default function Login() {
       const data = await response.json();
       localStorage.setItem("token", data.access_token);
       localStorage.setItem("rol", data.usuario.rol);
-      localStorage.setItem("nombre",data.usuario.nombre);
+      localStorage.setItem("nombre", data.usuario.nombre);
 
       navigate("/dashboard");
     } catch (error: any) {

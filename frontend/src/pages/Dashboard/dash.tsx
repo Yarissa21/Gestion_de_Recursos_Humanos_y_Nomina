@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import Header from "../../components/Header";
 
+const API_URL =
+  "https://gestion-de-recursos-humanos-y-nomina.onrender.com";
+
 interface Empleado {
   id_empleado: number;
   nombre_empleado: string;
@@ -29,20 +32,21 @@ export default function Dashboard() {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
+
     const headers = { Authorization: `Bearer ${token}` };
 
     if (rol === "admin" || rol === "userrh" || rol === "usuariorh") {
-      fetch("http://localhost:3000/api/usuarios", { headers })
+      fetch(`${API_URL}/api/usuarios`, { headers })
         .then(res => res.json())
         .then(data => setUsuarios(data.total))
         .catch(() => setUsuarios(0));
 
-      fetch("http://localhost:3000/nomina", { headers })
+      fetch(`${API_URL}/nomina`, { headers })
         .then(res => res.json())
         .then(data => {
           if (Array.isArray(data)) {
             setNominas(data.length);
-            setNominasList(data.slice(0, 3)); // últimas 3
+            setNominasList(data.slice(0, 3));
           }
         })
         .catch(() => setNominas(0));
@@ -52,14 +56,14 @@ export default function Dashboard() {
     }
 
     if (rol === "admin") {
-      fetch("http://localhost:3000/empleados", { headers })
+      fetch(`${API_URL}/empleados`, { headers })
         .then(res => res.json())
         .then(data => setEmpleados(Array.isArray(data) ? data : []))
         .catch(() => setEmpleados([]));
     }
 
     if (rol === "user") {
-      fetch("http://localhost:3000/nomina", { headers })
+      fetch(`${API_URL}/nomina`, { headers })
         .then(res => res.json())
         .then(data => {
           if (Array.isArray(data)) {
@@ -79,11 +83,9 @@ export default function Dashboard() {
         <h1 className="text-4xl font-bold mb-1">Dashboard de Recursos Humanos</h1>
         <p className="text-gray-500 mb-10">Bienvenido, {nombre} ({rolDisplay})</p>
 
-        {/* Cards para Admin y RH */}
         {(rol === "admin" || rol === "userrh" || rol === "usuariorh") && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
 
-            {/* Total Usuarios */}
             <div className="bg-white rounded-xl shadow-sm p-6 flex justify-between items-start">
               <div>
                 <p className="text-gray-500 text-sm mb-1">Total Usuarios</p>
@@ -100,7 +102,6 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Nóminas Generadas */}
             <div className="bg-white rounded-xl shadow-sm p-6 flex justify-between items-start">
               <div>
                 <p className="text-gray-500 text-sm mb-1">Nóminas Generadas</p>
@@ -115,7 +116,6 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Áreas */}
             <div className="bg-white rounded-xl shadow-sm p-6 flex justify-between items-start">
               <div>
                 <p className="text-gray-500 text-sm mb-1">Áreas</p>
@@ -130,7 +130,6 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Documentos */}
             <div className="bg-white rounded-xl shadow-sm p-6 flex justify-between items-start">
               <div>
                 <p className="text-gray-500 text-sm mb-1">Documentos</p>
@@ -146,7 +145,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Card solo para User */}
         {rol === "user" && (
           <div className="bg-white rounded-xl shadow-sm p-6 flex justify-between items-start max-w-sm mb-10">
             <div>
@@ -163,11 +161,9 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Secciones inferiores - Admin y RH */}
         {(rol === "admin" || rol === "userrh" || rol === "usuariorh") && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-            {/* Últimas Nóminas */}
             <div className="bg-white rounded-xl shadow-sm p-6">
               <h3 className="text-lg font-semibold mb-4">Últimas Nóminas</h3>
               {nominasList.length === 0 ? (
@@ -190,7 +186,6 @@ export default function Dashboard() {
               )}
             </div>
 
-            {/* Áreas Configuradas */}
             <div className="bg-white rounded-xl shadow-sm p-6">
               <h3 className="text-lg font-semibold mb-4">Áreas Configuradas</h3>
               <p className="text-gray-400 text-center py-4">No hay áreas configuradas</p>

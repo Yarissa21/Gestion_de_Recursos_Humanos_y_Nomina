@@ -3,6 +3,9 @@ import { Navigate } from "react-router-dom";
 import Header from "../../components/Header";
 import { isAdmin } from "../../utils/auth";
 
+const API_URL =
+  "https://gestion-de-recursos-humanos-y-nomina.onrender.com";
+
 export default function ConfiguracionAreas() {
   if (!isAdmin()) return <Navigate to="/dashboard" replace />;
 
@@ -35,7 +38,17 @@ export default function ConfiguracionAreas() {
       alert("Por favor, ingresa el nombre del área.");
       return;
     }
+
     const nuevaArea = { nombre: nombreArea, documentos };
+
+    await fetch(`${API_URL}/areas`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(nuevaArea),
+    });
+
     setAreas([...areas, nuevaArea]);
     setNombreArea("");
     setDocumentos([]);
