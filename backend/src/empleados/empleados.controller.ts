@@ -9,6 +9,7 @@ import {
   Delete,
   Patch,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 import { EmpleadosService } from './empleados.service';
 import { CreateEmpleadoDto } from './dto/create-empleado.dto';
@@ -19,9 +20,15 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 
 @Controller('empleados')
-//@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class EmpleadosController {
   constructor(private readonly empleadosService: EmpleadosService) {}
+
+  @Get('mi-perfil')
+  @UseGuards(JwtAuthGuard)
+  async miPerfil(@Req() req: any) {
+    return this.empleadosService.obtenerPerfilPropio(req.user.id_usuario);
+  }
 
   @Post()
   @Roles('admin')

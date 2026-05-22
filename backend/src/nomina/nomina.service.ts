@@ -61,20 +61,24 @@ export class NominaService {
       },
     });
 
-    const empleados = await this.prisma.empleado.findMany({ where: { eliminado: false } });
+    const empleados = await this.prisma.empleado.findMany({
+      where: { eliminado: false, estado: { not: 'Retirado' } },
+    });
+
+    const horasIniciales = dto.tipo === 'Quincenal' ? 96 : 191;
 
     for (const empleado of empleados) {
       const detalle = await this.prisma.detalleNomina.create({
         data: {
           salario_base: empleado.salario,
-          horas_trabajadas: 0,
+          horas_trabajadas: horasIniciales,
           horas_extra: 0,
-          id_nomina: nomina.id_nomina,
-          id_empleado: empleado.id_empleado,
-        },
-      });
-      await this.aplicarConceptosAutomaticos(detalle.id_detalle, detalle.salario_base);
-    }
+            id_nomina: nomina.id_nomina,
+            id_empleado: empleado.id_empleado,
+          },
+        });
+        await this.aplicarConceptosAutomaticos(detalle.id_detalle, detalle.salario_base);
+      }
 
     return nomina;
   }
@@ -316,7 +320,12 @@ export class NominaService {
   async recalcularNomina(id_nomina: number) {
     const nomina = await this.prisma.nomina.findUnique({
       where: { id_nomina },
-      include: { detalles: { include: { conceptos: { include: { concepto: true } } } } },
+      include: {
+        detalles: {
+          where: { eliminado: false },
+          include: { conceptos: { include: { concepto: true } } },
+        },
+      },
     });
 
     if (!nomina) throw new NotFoundException('Nómina no encontrada');
@@ -342,20 +351,41 @@ export class NominaService {
       }
     }
 
+    const empleadosActivos = await this.prisma.empleado.findMany({
+      where: { eliminado: false, estado: { not: 'Retirado' } },
+    });
+
+    const idsConDetalle = nomina.detalles.map(d => d.id_empleado);
+    const empleadosNuevos: number[] = [];
+
+    for (const empleado of empleadosActivos) {
+      if (!idsConDetalle.includes(empleado.id_empleado)) {
+        const detalle = await this.prisma.detalleNomina.create({
+          data: {
+            salario_base: empleado.salario,
+            horas_trabajadas: 0,
+            horas_extra: 0,
+            id_nomina,
+            id_empleado: empleado.id_empleado,
+          },
+        });
+        await this.aplicarConceptosAutomaticos(detalle.id_detalle, detalle.salario_base);
+        empleadosNuevos.push(empleado.id_empleado);
+      }
+    }
+
     const detallesActualizados = await this.prisma.detalleNomina.findMany({
       where: { id_nomina: nomina.id_nomina, eliminado: false },
       include: { conceptos: { include: { concepto: true } } },
     });
 
+    const referenciaHoras = nomina.tipo === 'Quincenal' ? 96 : 191;
     const resultados: any[] = [];
+
     for (const detalle of detallesActualizados) {
+      const esNuevo = empleadosNuevos.includes(detalle.id_empleado);
       let horasTrabajadas = detalle.horas_trabajadas ?? 0;
       let horasExtra = detalle.horas_extra ?? 0;
-
-      let referenciaHoras = 240; 
-      if (nomina.tipo === 'Quincenal') {
-        referenciaHoras = 120; 
-      }
 
       if (horasTrabajadas > referenciaHoras) {
         const excedente = horasTrabajadas - referenciaHoras;
@@ -366,12 +396,11 @@ export class NominaService {
       if (horasTrabajadas < referenciaHoras && horasExtra > 0) {
         const faltantes = referenciaHoras - horasTrabajadas;
         const usadasDeExtra = Math.min(faltantes, horasExtra);
-
         horasTrabajadas += usadasDeExtra;
         horasExtra -= usadasDeExtra;
       }
 
-      const tarifaHora = detalle.salario_base / 240;
+      const tarifaHora = detalle.salario_base / 191;
 
       const pagoHorasNormales = Math.round(horasTrabajadas * tarifaHora * 100) / 100;
       const pagoHorasExtra = Math.round(horasExtra * tarifaHora * 1.5 * 100) / 100;
@@ -388,17 +417,18 @@ export class NominaService {
 
       await this.prisma.detalleNomina.update({
         where: { id_detalle: detalle.id_detalle },
-        data: { 
+        data: {
           horas_trabajadas: horasTrabajadas,
           horas_extra: horasExtra,
           pago_horas_normales: pagoHorasNormales,
           pago_horas_extra: pagoHorasExtra,
-          total_liquido: total
+          total_liquido: total,
         },
       });
 
       resultados.push({
         empleado: detalle.id_empleado,
+        es_nuevo: esNuevo,
         salario_base: detalle.salario_base,
         horas_trabajadas: horasTrabajadas,
         horas_extra: horasExtra,
@@ -420,6 +450,8 @@ export class NominaService {
       periodo: nominaProcesada.periodo,
       tipo: nominaProcesada.tipo,
       estado: nominaProcesada.estado,
+      nuevos_empleados_agregados: empleadosNuevos.length > 0,
+      cantidad_nuevos: empleadosNuevos.length,
       resultados,
     };
   }
