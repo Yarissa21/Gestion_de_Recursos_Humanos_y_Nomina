@@ -1,32 +1,45 @@
 const LOCAL_URL = "http://localhost:3000";
 const REMOTE_URL = "https://gestion-de-recursos-humanos-y-nomina.onrender.com";
 
+let usarLocal: boolean | null = null;
+let ultimaVerificacion = 0;
+const CACHE_VERIFICACION = 30000;
+
+async function verificarLocal(): Promise<boolean> {
+  const ahora = Date.now();
+  if (usarLocal !== null && ahora - ultimaVerificacion < CACHE_VERIFICACION) {
+    return usarLocal;
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2000);
+    await fetch(`${LOCAL_URL}/departamentos`, { signal: controller.signal });
+    clearTimeout(timeout);
+    usarLocal = true;
+  } catch {
+    usarLocal = false;
+  }
+
+  ultimaVerificacion = Date.now();
+  return usarLocal;
+}
+
 export async function fetchWithFallback(
   path: string,
   options?: RequestInit
 ): Promise<Response> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 500);
+  const localDisponible = await verificarLocal();
 
-    const localRes = await fetch(`${LOCAL_URL}${path}`, {
-      ...options,
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeout);
-
-    // SI localhost responde 404/500/etc -> usar Render
-    if (!localRes.ok) {
-      console.warn("Local falló, usando Render:", path);
-
+  if (localDisponible) {
+    try {
+      const res = await fetch(`${LOCAL_URL}${path}`, options);
+      return res;
+    } catch {
+      usarLocal = false;
       return fetch(`${REMOTE_URL}${path}`, options);
     }
-
-    return localRes;
-  } catch (err: any) {
-    console.warn("Local no disponible, usando Render:", path);
-
-    return fetch(`${REMOTE_URL}${path}`, options);
   }
+
+  return fetch(`${REMOTE_URL}${path}`, options);
 }

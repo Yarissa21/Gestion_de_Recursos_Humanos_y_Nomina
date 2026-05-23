@@ -8,7 +8,8 @@ import ProtectedRoute from "./ProtectedRoutes";
 import Puestos from "../pages/PuestosdeTrabajo/puestos";
 import Documentos from "../pages/Documentos/documentos";
 import Empleados from "../pages/Dashboard/empleados";
-import Usuarios from "../pages/Dashboard/usuarios";
+import Usuarios from "../pages/Dashboard/usuarios-sistema";
+import UsuariosSistema from "../pages/Dashboard/usuarios-sistema";
 
 export default function AppRoutes() {
   return (
@@ -26,6 +27,7 @@ export default function AppRoutes() {
         <Route path="/documentos" element={<Documentos />} />
         <Route path="/empleados" element={<Empleados />} />
         <Route path="/usuarios" element={<Usuarios />} />
+        <Route path="/usuarios-sistema" element={<UsuariosSistema />} />
       </Routes>
     </BrowserRouter>
   );
