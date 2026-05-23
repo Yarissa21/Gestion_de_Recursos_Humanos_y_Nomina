@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../../components/Header";
 import { fetchWithFallback } from "../../utils/api";
-import LoadingScreen from "../../components/LoadingScreen";
 
 interface Empleado {
   id_empleado: number;
@@ -179,7 +178,9 @@ export default function Dashboard() {
       <Header rol={rol} nombre={nombre} />
 
       {loadingAll ? (
-        <LoadingScreen />
+        <div className="flex items-center justify-center min-h-[70vh]">
+          <p className="text-gray-400 text-sm font-medium">Cargando...</p>
+        </div>
       ) : errorTimeout ? (
         <div className="flex flex-col items-center justify-center min-h-[70vh] gap-4">
           <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -210,7 +211,7 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
 
               <button
-                onClick={() => navigate("/usuarios")}
+                onClick={() => navigate("/empleados")}
                 className="bg-white rounded-xl shadow-sm p-6 flex justify-between items-start text-left hover:shadow-md hover:-translate-y-0.5 transition w-full"
               >
                 <div>

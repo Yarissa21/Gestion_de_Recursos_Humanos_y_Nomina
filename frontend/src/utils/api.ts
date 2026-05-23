@@ -9,14 +9,24 @@ export async function fetchWithFallback(
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 500);
 
-    const res = await fetch(`${LOCAL_URL}${path}`, {
+    const localRes = await fetch(`${LOCAL_URL}${path}`, {
       ...options,
       signal: controller.signal,
     });
 
     clearTimeout(timeout);
-    return res;
+
+    // SI localhost responde 404/500/etc -> usar Render
+    if (!localRes.ok) {
+      console.warn("Local falló, usando Render:", path);
+
+      return fetch(`${REMOTE_URL}${path}`, options);
+    }
+
+    return localRes;
   } catch (err: any) {
+    console.warn("Local no disponible, usando Render:", path);
+
     return fetch(`${REMOTE_URL}${path}`, options);
   }
 }
