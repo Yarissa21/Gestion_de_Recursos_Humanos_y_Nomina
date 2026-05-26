@@ -29,6 +29,21 @@ export class NominaService {
       if (existente) {
         throw new BadRequestException('Ya existe una nómina mensual para este periodo');
       }
+      const quincenaExistente = await this.prisma.nomina.findFirst({
+        where: {
+          tipo: 'Quincenal',
+          eliminado: false,
+          OR: [
+            { periodo: `Primera Quincena ${mesActual} ${anioActual}` },
+            { periodo: `Segunda Quincena ${mesActual} ${anioActual}` },
+          ],
+        },
+      });
+      if (quincenaExistente) {
+        throw new BadRequestException(
+          `Ya existe una nómina quincenal de ${mesActual} ${anioActual}, no se puede crear una mensual para el mismo periodo`
+        );
+      }
     }
 
     if (dto.tipo === 'Quincenal') {
@@ -49,6 +64,14 @@ export class NominaService {
       });
       if (existente) {
         throw new BadRequestException('Ya existe una nómina quincenal para este periodo');
+      }
+      const mensualExistente = await this.prisma.nomina.findFirst({
+        where: { periodo: `${mesActual} ${anioActual}`, tipo: 'Mensual', eliminado: false },
+      });
+      if (mensualExistente) {
+        throw new BadRequestException(
+          `Ya existe una nómina mensual de ${mesActual} ${anioActual}, no se puede crear una quincenal para el mismo periodo`
+        );
       }
     }
 
@@ -409,16 +432,11 @@ export class NominaService {
     const idsExistentes = detalle.conceptos.map(c => c.id_concepto);
 
     for (const concepto of conceptosCatalogo) {
-      const monto = this.calcularMontoConcepto(concepto, detalle.salario_base);
-
       if (idsExistentes.includes(concepto.id_concepto)) {
+        const monto = this.calcularMontoConcepto(concepto, detalle.salario_base);
         await this.prisma.detalleConceptoNomina.updateMany({
           where: { id_detalle, id_concepto: concepto.id_concepto },
           data: { monto },
-        });
-      } else {
-        await this.prisma.detalleConceptoNomina.create({
-          data: { monto, id_detalle, id_concepto: concepto.id_concepto },
         });
       }
     }
@@ -442,10 +460,19 @@ export class NominaService {
   async sincronizarEmpleadosNomina(id_nomina: number) {
     const nomina = await this.prisma.nomina.findUnique({
       where: { id_nomina },
-      include: { detalles: { where: { eliminado: false } } },
+      include: { 
+        detalles: { 
+          where: { eliminado: false },
+          include: { conceptos: true },
+        },
+      },
     });
 
     if (!nomina) throw new NotFoundException('Nómina no encontrada');
+
+    const conceptosCatalogo = await this.prisma.conceptoNomina.findMany({
+      where: { eliminado: false },
+    });
 
     const empleadosActivos = await this.prisma.empleado.findMany({
       where: { eliminado: false, estado: { not: 'Retirado' } },
@@ -454,6 +481,22 @@ export class NominaService {
     const idsConDetalle = nomina.detalles.map(d => d.id_empleado);
     const horasIniciales = nomina.tipo === 'Quincenal' ? 96 : 191;
     const empleadosAgregados: number[] = [];
+    let conceptosPropagados = 0;
+
+    for (const detalle of nomina.detalles) {
+      const idsExistentes = detalle.conceptos.map(c => c.id_concepto);
+      const conceptosFaltantes = conceptosCatalogo.filter(
+        c => !idsExistentes.includes(c.id_concepto),
+      );
+
+      for (const concepto of conceptosFaltantes) {
+        const monto = this.calcularMontoConcepto(concepto, detalle.salario_base);
+        await this.prisma.detalleConceptoNomina.create({
+          data: { monto, id_detalle: detalle.id_detalle, id_concepto: concepto.id_concepto },
+        });
+        conceptosPropagados++;
+      }
+    }
 
     for (const empleado of empleadosActivos) {
       if (!idsConDetalle.includes(empleado.id_empleado)) {
@@ -479,11 +522,12 @@ export class NominaService {
     }
 
     return {
-      sincronizados: empleadosAgregados.length,
+      empleados_sincronizados: empleadosAgregados.length,
+      conceptos_propagados: conceptosPropagados,
       empleados_agregados: empleadosAgregados,
-      mensaje: empleadosAgregados.length === 0
-        ? 'Todos los empleados activos ya están en la nómina'
-        : `Se agregaron ${empleadosAgregados.length} empleado(s) a la nómina`,
+      mensaje: empleadosAgregados.length === 0 && conceptosPropagados === 0
+        ? 'La nómina ya está sincronizada'
+        : `Se agregaron ${empleadosAgregados.length} empleado(s) y se propagaron ${conceptosPropagados} concepto(s) faltante(s)`,
     };
   }
 
