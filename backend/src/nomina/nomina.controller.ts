@@ -127,10 +127,16 @@ export class NominaController {
 
   //_________________________Calcular Nomina______________________________
 
-  @Post(':id/recalcular')
+  @Post('detalles/:id/recalcular')
   @UseGuards(NominaEditableGuard)
-  async recalcular(@Param('id', ParseIntPipe) id: number) {
-    return this.nominaService.recalcularNomina(id);
+  async recalcularDetalle(@Param('id', ParseIntPipe) id_detalle: number) {
+    return this.nominaService.recalcularDetalle(id_detalle);
+  }
+
+  @Post(':id/sincronizar')
+  @UseGuards(NominaEditableGuard)
+  async sincronizar(@Param('id', ParseIntPipe) id_nomina: number) {
+    return this.nominaService.sincronizarEmpleadosNomina(id_nomina);
   }
 
   // __________________Historial_Ajuste_Nomina__________________
