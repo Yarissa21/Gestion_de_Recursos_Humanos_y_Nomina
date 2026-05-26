@@ -56,6 +56,7 @@ model Empleado {
   documentos DocumentoExpediente[]
   validacion ValidacionExpediente?
   detalles   DetalleNomina[]
+  usuario Usuario?
 }
 
 enum EstadoEmpleado {
@@ -144,6 +145,9 @@ model Usuario {
   nombre     String 
   password   String
   rol        String
+  
+  id_empleado Int?      @unique
+  empleado    Empleado? @relation(fields: [id_empleado], references: [id_empleado])
 
   documentosExpediente DocumentoExpediente[]
   documentosAcademicos DocumentoAcademico[]

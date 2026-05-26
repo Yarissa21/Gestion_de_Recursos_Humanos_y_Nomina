@@ -12,6 +12,17 @@ import { EstadoEmpleado } from '@prisma/client';
 export class EmpleadosService {
   constructor(private prisma: PrismaService) {}
 
+  async obtenerPerfilPropio(id_usuario: number) {
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id_usuario },
+      include: { empleado: true },
+    });
+    if (!usuario?.empleado) {
+      throw new NotFoundException('No tienes un perfil de empleado vinculado');
+    }
+    return usuario.empleado;
+  }
+
   async crearEmpleado(data: CreateEmpleadoDto) {
     if (!data.dpi || !data.nombre_empleado || !data.apellido_empleado) {
       throw new BadRequestException(
@@ -46,12 +57,18 @@ export class EmpleadosService {
       throw new NotFoundException(`Empleado con id ${id} no existe`);
     }
 
-    if (data.id_puesto && data.id_departamento) {
+    if (data.id_puesto || data.id_departamento) {
+      const departamentoFinal = data.id_departamento ?? empleado.id_departamento;
+      const puestoFinal = data.id_puesto ?? empleado.id_puesto;
+
       const puesto = await this.prisma.puestoTrabajo.findUnique({
-        where: { id_puesto: data.id_puesto },
+        where: { id_puesto: puestoFinal },
       });
-      if (!puesto || puesto.id_departamento !== data.id_departamento) {
-        throw new BadRequestException('El puesto no pertenece al departamento seleccionado');
+
+      if (!puesto || puesto.id_departamento !== departamentoFinal) {
+        throw new BadRequestException(
+          'El puesto no pertenece al departamento seleccionado'
+        );
       }
     }
 
