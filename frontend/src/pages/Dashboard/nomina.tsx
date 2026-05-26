@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import Header from "../../components/Header";
 import { isAdmin, isRH } from "../../utils/auth";
 import { fetchWithFallback } from "../../utils/api";
@@ -59,7 +58,6 @@ const esConceptoManual = (concepto: ConceptoCatalogo) =>
   concepto.fecha_aplica == null;
 
 export default function Nomina() {
-  const navigate = useNavigate();
   const token = localStorage.getItem("token");
   const rol = localStorage.getItem("rol")?.toLowerCase() || "sin rol";
   const nombre = localStorage.getItem("nombre") || "Usuario";
@@ -620,7 +618,7 @@ export default function Nomina() {
                                       {canEdit && nominaActiva.estado !== "Cerrada" && esManual ? (
                                         <button
                                           onClick={() => abrirEditarConcepto(c)}
-                                          className="text-gray-300 hover:text-amber-500 transition flex-shrink-0"
+                                          className="text-gray-300 hover:text-amber-500 transition shrink-0"
                                           title="Editar monto manual"
                                         >
                                           <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -634,7 +632,7 @@ export default function Nomina() {
                                           c.concepto.porcentaje != null ? `Calculado: ${c.concepto.porcentaje * 100}%` :
                                           c.concepto.monto_fijo != null ? `Monto fijo: Q${c.concepto.monto_fijo}` :
                                           c.concepto.fecha_aplica != null ? "Calculado por fecha" : ""
-                                        } className="text-gray-200 flex-shrink-0">
+                                        } className="text-gray-200 shrink-0">
                                           <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                             <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                                             <path d="M7 11V7a5 5 0 0 1 10 0v4" />
@@ -768,7 +766,7 @@ export default function Nomina() {
                       Campo: <span className="font-medium">{aj.campo_modificado}</span> · Por: <span className="font-medium">{aj.usuario?.nombre || "—"}</span>
                     </p>
                   </div>
-                  <div className="text-right flex-shrink-0">
+                  <div className="text-right shrink-0">
                     <p className="text-xs text-gray-500">
                       <span className="text-red-500 font-medium">{fmtCampo(aj.campo_modificado, aj.valor_anterior)}</span>
                       {" → "}

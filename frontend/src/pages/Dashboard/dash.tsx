@@ -25,7 +25,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
 
   const [loadingAll, setLoadingAll] = useState(() => !sessionStorage.getItem("dashboard_cache"));
-  const [loadingDeps, setLoadingDeps] = useState(true);
+  const [_loadingDeps, setLoadingDeps] = useState(true);
   const [errorTimeout, setErrorTimeout] = useState(false);
   const [usuarios, setUsuarios] = useState(0);
   const [nominas, setNominas] = useState(0);
