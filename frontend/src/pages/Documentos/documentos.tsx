@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import Header from "../../components/Header";
 import { isAdmin } from "../../utils/auth";
 import { fetchWithFallback } from "../../utils/api";
@@ -26,7 +26,9 @@ interface DocAcademico {
   fecha_carga: string;
   archivo: string;
   tipo_doc: { nombre: string };
-  academico: { empleado: { nombre_empleado: string; apellido_empleado: string } };
+  academico: {
+    empleado: { nombre_empleado: string; apellido_empleado: string };
+  };
   usuario: Usuario;
   categoria: "academico";
 }
@@ -44,10 +46,11 @@ const getTipo = (doc: Documento) =>
     : (doc as DocAcademico).tipo_doc?.nombre || "—";
 
 const getEmpleado = (doc: Documento) => {
-  const emp =
-    doc.categoria === "expediente"
-      ? (doc as DocExpediente).empleado
-      : (doc as DocAcademico).academico?.empleado;
+  if (doc.categoria === "expediente") {
+    const emp = (doc as DocExpediente).empleado;
+    return emp ? `${emp.nombre_empleado} ${emp.apellido_empleado}` : "—";
+  }
+  const emp = (doc as DocAcademico).academico?.empleado;
   return emp ? `${emp.nombre_empleado} ${emp.apellido_empleado}` : "—";
 };
 
@@ -58,6 +61,8 @@ const getId = (doc: Documento) =>
 
 export default function Documentos() {
   if (!isAdmin()) return <Navigate to="/dashboard" replace />;
+
+  const navigate = useNavigate();
 
   const [documentos, setDocumentos] = useState<Documento[]>([]);
   const [loading, setLoading] = useState(true);
@@ -125,29 +130,22 @@ export default function Documentos() {
     return true;
   });
 
-  const getArchivoUrl = (doc: Documento) => {
-    const id = getId(doc);
-    return doc.categoria === "expediente"
-      ? `/expediente/documento/${id}/archivo`
-      : `/academicos/documento/${id}/archivo`;
-  };
-
-  const handlePrevistar = (doc: Documento) => setPrevistaDoc(doc);
-
   const handleDescargar = async (doc: Documento) => {
-    const url = getArchivoUrl(doc) + "?download=true";
+    const id = getId(doc);
+    const url = doc.categoria === "expediente"
+      ? `/expediente/documento/${id}/archivo?download=true`
+      : `/academicos/documento/${id}/archivo?download=true`;
     try {
       const LOCAL = "http://localhost:3000";
       const REMOTE = "https://gestion-de-recursos-humanos-y-nomina.onrender.com";
-      let fullUrl = `${LOCAL}${url}`;
+      let base = LOCAL;
       try {
-        const test = await fetch(`${LOCAL}/departamentos`, { signal: AbortSignal.timeout(2000) });
-        if (!test.ok) throw new Error();
+        await fetch(`${LOCAL}/departamentos`, { signal: AbortSignal.timeout(2000) });
       } catch {
-        fullUrl = `${REMOTE}${url}`;
+        base = REMOTE;
       }
       const a = document.createElement("a");
-      a.href = fullUrl;
+      a.href = `${base}${url}`;
       a.download = getNombre(doc);
       a.click();
     } catch {
@@ -185,20 +183,15 @@ export default function Documentos() {
       } else {
         formData.append("nombre", nuevoNombre.trim());
       }
-      if (nuevoArchivo) {
-        formData.append("file", nuevoArchivo);
-      }
-
+      if (nuevoArchivo) formData.append("file", nuevoArchivo);
       const url = editandoDoc.categoria === "expediente"
         ? `/expediente/documento/${id}`
         : `/academicos/documento/${id}`;
-
       await fetchWithFallback(url, {
         method: "PUT",
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
-
       setEditandoDoc(null);
       setNuevoArchivo(null);
       cargarDocumentos();
@@ -210,9 +203,7 @@ export default function Documentos() {
   };
 
   const badgeCategoria = (cat: "expediente" | "academico") =>
-    cat === "expediente"
-      ? "bg-amber-100 text-amber-700"
-      : "bg-blue-100 text-blue-700";
+    cat === "expediente" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700";
 
   return (
     <div className="bg-gray-50 min-h-screen text-gray-800 font-sans">
@@ -220,15 +211,36 @@ export default function Documentos() {
 
       <main className="max-w-7xl mx-auto px-6 mt-10">
 
-        {/* Título */}
-        <div className="flex items-center gap-3 mb-8">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-          </svg>
-          <h1 className="text-3xl font-bold">Documentos</h1>
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg>
+            <h1 className="text-3xl font-bold">Documentos</h1>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={() => navigate("/expediente")}
+              className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2 rounded-md hover:bg-blue-700 transition font-medium text-sm"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              </svg>
+              Expediente
+            </button>
+            <button
+              onClick={() => navigate("/informacion-academica")}
+              className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2 rounded-md hover:bg-blue-700 transition font-medium text-sm"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path d="M12 14l9-5-9-5-9 5 9 5z" />
+                <path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+              </svg>
+              Info. Académica
+            </button>
+          </div>
         </div>
 
-        {/* Filtros */}
         <div className="bg-white rounded-xl shadow-sm p-4 mb-6 flex flex-wrap gap-3 items-center">
           <div className="relative flex-1 min-w-48">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -277,7 +289,6 @@ export default function Documentos() {
           </span>
         </div>
 
-        {/* Tabla */}
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
           {loading ? (
             <p className="text-gray-400 text-center py-10">Cargando...</p>
@@ -306,7 +317,7 @@ export default function Documentos() {
                     <td className="p-4 text-sm text-gray-600">{getEmpleado(doc)}</td>
                     <td className="p-4 text-sm text-gray-600">{doc.usuario?.nombre || "—"}</td>
                     <td className="p-4 text-sm text-gray-500">
-                      {doc.fecha_carga ? new Date(doc.fecha_carga).toLocaleDateString() : "—"}
+                      {doc.fecha_carga ? new Date(doc.fecha_carga).toLocaleDateString("es-GT") : "—"}
                     </td>
                     <td className="p-4">
                       <span className={`text-xs font-medium px-2 py-1 rounded-full ${badgeCategoria(doc.categoria)}`}>
@@ -315,7 +326,7 @@ export default function Documentos() {
                     </td>
                     <td className="p-4">
                       <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => handlePrevistar(doc)} className="text-gray-400 hover:text-blue-600 transition p-1.5 rounded-md hover:bg-blue-50" title="Vista previa">
+                        <button onClick={() => setPrevistaDoc(doc)} className="text-gray-400 hover:text-blue-600 transition p-1.5 rounded-md hover:bg-blue-50" title="Vista previa">
                           <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                             <circle cx="12" cy="12" r="3" />
@@ -352,7 +363,6 @@ export default function Documentos() {
         </div>
       </main>
 
-      {/* Modal Vista Previa */}
       {previstaDoc && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl h-[80vh] flex flex-col">
@@ -391,12 +401,10 @@ export default function Documentos() {
         </div>
       )}
 
-      {/* Modal Editar */}
       {editandoDoc && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm">
             <h3 className="text-lg font-semibold mb-4">Editar Documento</h3>
-
             <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
             <input
               type="text"
@@ -406,7 +414,6 @@ export default function Documentos() {
               className="border border-gray-300 rounded-md w-full p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
               autoFocus
             />
-
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Reemplazar archivo
               <span className="text-gray-400 font-normal ml-1">(opcional)</span>
@@ -427,7 +434,7 @@ export default function Documentos() {
                   <span className="text-sm text-blue-700 font-medium truncate">{nuevoArchivo.name}</span>
                   <button
                     onClick={(e) => { e.stopPropagation(); setNuevoArchivo(null); }}
-                    className="text-gray-400 hover:text-red-500 transition flex-shrink-0"
+                    className="text-gray-400 hover:text-red-500 transition shrink-0"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -445,7 +452,6 @@ export default function Documentos() {
                 </div>
               )}
             </div>
-
             <div className="flex gap-3">
               <button
                 onClick={handleGuardarEdicion}

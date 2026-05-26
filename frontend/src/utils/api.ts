@@ -14,15 +14,15 @@ async function verificarLocal(): Promise<boolean> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 2000);
-    await fetch(`${LOCAL_URL}/departamentos`, { signal: controller.signal });
+    const res = await fetch(`${LOCAL_URL}/health`, { signal: controller.signal });
     clearTimeout(timeout);
-    usarLocal = true;
+    usarLocal = res.status < 500;
   } catch {
     usarLocal = false;
   }
 
   ultimaVerificacion = Date.now();
-  return usarLocal;
+  return usarLocal ?? false;
 }
 
 export async function fetchWithFallback(

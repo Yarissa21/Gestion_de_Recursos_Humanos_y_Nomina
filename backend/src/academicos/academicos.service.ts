@@ -1,4 +1,4 @@
-import {Injectable, NotFoundException, ForbiddenException,
+import {Injectable, NotFoundException, ForbiddenException, BadRequestException
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAcademicoDto } from './dto/create-academico.dto';
@@ -13,6 +13,19 @@ export class AcademicosService {
   // ============================
 
   async crearAcademico(dto: CreateAcademicoDto) {
+    const existente = await this.prisma.informacionAcademica.findFirst({
+      where: {
+        id_empleado: dto.id_empleado,
+        eliminado: false,
+      } as any,
+    });
+
+    if (existente) {
+      throw new BadRequestException(
+        `Este empleado ya tiene un registro de información académica. Edítalo o elimínalo primero.`,
+      );
+    }
+
     return this.prisma.informacionAcademica.create({
       data: {
         titulo: dto.titulo,
@@ -118,7 +131,11 @@ export class AcademicosService {
     return this.prisma.documentoAcademico.findMany({
       where: { eliminado: false },
       include: {
-        academico: true,
+        academico: {
+          include: {
+            empleado: true,
+          },
+        },
         tipo_doc: true,
         usuario: true,
       },
