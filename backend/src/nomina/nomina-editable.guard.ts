@@ -32,8 +32,7 @@ export class NominaEditableGuard implements CanActivate {
   }
 
   private async resolverIdNomina(request: any): Promise<number | null> {
-
-    if (request.route.path.includes(':id/recalcular') || request.route.path.includes(':id/estado') || request.route.path === '/nomina/:id') {
+    if (request.route.path.includes(':id/estado') || request.route.path === '/nomina/:id') {
       return Number(request.params.id);
     }
 
@@ -50,6 +49,10 @@ export class NominaEditableGuard implements CanActivate {
         include: { detalle: true },
       });
       return detalleConcepto?.detalle?.id_nomina ?? null;
+    }
+
+    if (request.route.path.includes(':id/sincronizar')) {
+      return Number(request.params.id);
     }
 
     return null;

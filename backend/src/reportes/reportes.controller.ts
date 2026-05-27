@@ -36,6 +36,27 @@ export class ReportesController {
     );
   }
 
+  @Get('nominas/empleado/:id')
+  async reporteNominasPorEmpleado(
+    @Param('id', ParseIntPipe) id: number,
+    @Res() res: any,
+  ) {
+    return this.service.generarReporteNominasPorEmpleado(id, res);
+  }
+ 
+  @Get('nominas/:nominaId/empleado/:empleadoId')
+  async reporteDetalleEmpleadoEnNomina(
+    @Param('nominaId', ParseIntPipe) nominaId: number,
+    @Param('empleadoId', ParseIntPipe) empleadoId: number,
+    @Res() res: any,
+  ) {
+    return this.service.generarReporteDetalleEmpleadoEnNomina(
+      nominaId,
+      empleadoId,
+      res,
+    );
+  }
+
   // ============================
   // EXPEDIENTES
   // ============================
