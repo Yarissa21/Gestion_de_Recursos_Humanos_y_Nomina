@@ -46,12 +46,20 @@ export class AcademicosService {
 
   async obtenerPorEmpleado(id_empleado: number) {
     return this.prisma.informacionAcademica.findMany({
-      where: {
-        id_empleado,
-        eliminado: false,
-      } as any,
+      where: { id_empleado, eliminado: false } as any,
       include: {
         empleado: true,
+        documentos: {
+          where: { eliminado: false },
+          select: {
+            id_doc_academico: true,
+            nombre: true,
+            fecha_carga: true,
+            id_academico: true,
+            id_tipo_doc_academico: true,
+            tipo_doc: { select: { nombre: true } },
+          },
+        },
       },
     });
   }

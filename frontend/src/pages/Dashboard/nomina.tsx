@@ -14,6 +14,7 @@ interface Nomina {
 interface DetalleNomina {
   id_detalle: number;
   id_empleado: number;
+  empleado?: { nombre_empleado: string; apellido_empleado: string };
   salario_base: number;
   horas_trabajadas: number;
   horas_extra: number;
@@ -73,6 +74,7 @@ export default function Nomina() {
   const [nominas, setNominas] = useState<Nomina[]>([]);
   const [loading, setLoading] = useState(true);
   const [nominaActiva, setNominaActiva] = useState<Nomina | null>(null);
+  const [miIdEmpleado, setMiIdEmpleado] = useState<number | null>(null);
 
   const [mostrarCrear, setMostrarCrear] = useState(false);
   const [tipo, setTipo] = useState<"Mensual" | "Quincenal">("Mensual");
@@ -88,7 +90,6 @@ export default function Nomina() {
   const [horasExtra, setHorasExtra] = useState("");
   const [guardandoDetalle, setGuardandoDetalle] = useState(false);
   const [recalculandoDetalle, setRecalculandoDetalle] = useState<number | null>(null);
-  const [detallesModificados, setDetallesModificados] = useState<Set<number>>(new Set());
 
   const [editandoConcepto, setEditandoConcepto] = useState<DetalleConcepto | null>(null);
   const [montoConcepto, setMontoConcepto] = useState("");
@@ -101,17 +102,39 @@ export default function Nomina() {
   const [filtroEstado, setFiltroEstado] = useState<"todos" | "Pendiente" | "Procesada" | "Cerrada">("todos");
   const [filtroTipo, setFiltroTipo] = useState<"todos" | "Mensual" | "Quincenal">("todos");
 
-  const cargarNominas = () => {
-    setLoading(true);
-    const endpoint = esRolUser ? "/nomina/mis-nominas" : "/nomina";
-    fetchWithFallback(endpoint, { headers })
-      .then((r) => r.json())
-      .then((d) => setNominas(Array.isArray(d) ? d : []))
-      .catch(() => setNominas([]))
-      .finally(() => setLoading(false));
-  };
+  useEffect(() => {
+    const cargar = async () => {
+      setLoading(true);
+      try {
+        if (esRolUser) {
+          const [nominasRes, perfilRes] = await Promise.all([
+            fetchWithFallback("/nomina/mis-nominas", { headers }).then(r => r.json()),
+            fetchWithFallback("/empleados/mi-perfil", { headers }).then(r => r.json()),
+          ]);
+          setNominas(Array.isArray(nominasRes) ? nominasRes : []);
+          if (perfilRes?.id_empleado) setMiIdEmpleado(perfilRes.id_empleado);
+        } else {
+          const res = await fetchWithFallback("/nomina", { headers });
+          const data = await res.json();
+          setNominas(Array.isArray(data) ? data : []);
+        }
+      } catch {
+        setNominas([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    cargar();
+  }, []);
 
-  useEffect(() => { cargarNominas(); }, []);
+  const cargarNominas = async () => {
+    try {
+      const endpoint = esRolUser ? "/nomina/mis-nominas" : "/nomina";
+      const res = await fetchWithFallback(endpoint, { headers });
+      const data = await res.json();
+      setNominas(Array.isArray(data) ? data : []);
+    } catch {}
+  };
 
   const getPeriodo = () => {
     const hoy = new Date();
@@ -125,8 +148,7 @@ export default function Nomina() {
     n != null ? `Q ${n.toLocaleString("es-GT", { minimumFractionDigits: 2 })}` : "—";
 
   const fmtCampo = (campo: string, valor: number) => {
-    const camposHoras = ["horas_trabajadas", "horas_extra"];
-    if (camposHoras.includes(campo)) return `${valor} hrs`;
+    if (["horas_trabajadas", "horas_extra"].includes(campo)) return `${valor} hrs`;
     return fmt(valor);
   };
 
@@ -143,7 +165,7 @@ export default function Nomina() {
         throw new Error(err.message || "Error al crear");
       }
       setMostrarCrear(false);
-      cargarNominas();
+      await cargarNominas();
     } catch (e: any) {
       alert(e.message || "No se pudo crear la nómina.");
     } finally {
@@ -155,7 +177,7 @@ export default function Nomina() {
     if (!confirm("¿Eliminar esta nómina?")) return;
     try {
       await fetchWithFallback(`/nomina/${id}`, { method: "DELETE", headers });
-      cargarNominas();
+      await cargarNominas();
     } catch {
       alert("No se pudo eliminar.");
     }
@@ -168,7 +190,7 @@ export default function Nomina() {
         headers,
         body: JSON.stringify({ estado }),
       });
-      cargarNominas();
+      await cargarNominas();
       if (nominaActiva?.id_nomina === id) {
         setNominaActiva((prev) => prev ? { ...prev, estado: estado as any } : prev);
       }
@@ -177,22 +199,30 @@ export default function Nomina() {
     }
   };
 
-  const abrirDetalle = async (nomina: Nomina) => {
-    setNominaActiva(nomina);
-    setVista("detalle");
-    setDetalleExpandido(null);
-    setConceptosMap({});
-    setDetallesModificados(new Set());
+  const cargarDetalles = async (nomina: Nomina) => {
     setLoadingDetalles(true);
     try {
       const res = await fetchWithFallback(`/nomina/${nomina.id_nomina}/detalles`, { headers });
       const data = await res.json();
-      setDetalles(Array.isArray(data) ? data : []);
+      const todos = Array.isArray(data) ? data : [];
+      if (esRolUser && miIdEmpleado) {
+        setDetalles(todos.filter((d: DetalleNomina) => d.id_empleado === miIdEmpleado));
+      } else {
+        setDetalles(todos);
+      }
     } catch {
       setDetalles([]);
     } finally {
       setLoadingDetalles(false);
     }
+  };
+
+  const abrirDetalle = async (nomina: Nomina) => {
+    setNominaActiva(nomina);
+    setVista("detalle");
+    setDetalleExpandido(null);
+    setConceptosMap({});
+    await cargarDetalles(nomina);
   };
 
   const toggleConceptos = async (id_detalle: number) => {
@@ -219,7 +249,7 @@ export default function Nomina() {
   };
 
   const handleGuardarDetalle = async () => {
-    if (!editandoDetalle) return;
+    if (!editandoDetalle || !nominaActiva) return;
     setGuardandoDetalle(true);
     try {
       await fetchWithFallback(`/nomina/detalles/${editandoDetalle.id_detalle}`, {
@@ -230,33 +260,64 @@ export default function Nomina() {
           horas_extra: Number(horasExtra),
         }),
       });
-      setDetallesModificados((prev) => new Set(prev).add(editandoDetalle.id_detalle));
       setEditandoDetalle(null);
-      if (nominaActiva) abrirDetalle(nominaActiva);
+      // Recalcular automáticamente el detalle tras guardar
+      setRecalculandoDetalle(editandoDetalle.id_detalle);
+      await fetchWithFallback(`/nomina/detalles/${editandoDetalle.id_detalle}/recalcular`, {
+        method: "POST",
+        headers,
+      });
+      await cargarDetalles(nominaActiva);
+      // Recargar conceptos si estaba expandido
+      if (detalleExpandido === editandoDetalle.id_detalle) {
+        const res = await fetchWithFallback(`/nomina/detalles/${editandoDetalle.id_detalle}/conceptos`, { headers });
+        const data = await res.json();
+        setConceptosMap((prev) => ({ ...prev, [editandoDetalle.id_detalle]: Array.isArray(data) ? data : [] }));
+      }
     } catch {
       alert("No se pudo actualizar el detalle.");
     } finally {
       setGuardandoDetalle(false);
+      setRecalculandoDetalle(null);
     }
   };
 
-  const handleRecalcularDetalle = async (id_detalle: number) => {
-    setRecalculandoDetalle(id_detalle);
+  const abrirEditarConcepto = (concepto: DetalleConcepto) => {
+    setEditandoConcepto(concepto);
+    setMontoConcepto(String(concepto.monto));
+  };
+
+  const handleGuardarConcepto = async () => {
+    if (!editandoConcepto || !nominaActiva) return;
+    setGuardandoConcepto(true);
     try {
-      const res = await fetchWithFallback(`/nomina/detalles/${id_detalle}/recalcular`, {
-        method: "POST",
+      await fetchWithFallback(`/nomina/conceptos/${editandoConcepto.id_detalle_concepto}`, {
+        method: "PUT",
         headers,
+        body: JSON.stringify({ monto: Number(montoConcepto) }),
       });
-      if (!res.ok) throw new Error();
-      setDetallesModificados((prev) => {
-        const n = new Set(prev);
-        n.delete(id_detalle);
-        return n;
-      });
-      if (nominaActiva) await abrirDetalle(nominaActiva);
+      setEditandoConcepto(null);
+      // Recalcular el detalle automáticamente tras editar concepto
+      const id_detalle = detalleExpandido;
+      if (id_detalle) {
+        setRecalculandoDetalle(id_detalle);
+        await fetchWithFallback(`/nomina/detalles/${id_detalle}/recalcular`, {
+          method: "POST",
+          headers,
+        });
+        const [conceptosRes, detallesRes] = await Promise.all([
+          fetchWithFallback(`/nomina/detalles/${id_detalle}/conceptos`, { headers }).then(r => r.json()),
+          fetchWithFallback(`/nomina/${nominaActiva.id_nomina}/detalles`, { headers }).then(r => r.json()),
+        ]);
+        setConceptosMap((prev) => ({ ...prev, [id_detalle]: Array.isArray(conceptosRes) ? conceptosRes : [] }));
+        const todos = Array.isArray(detallesRes) ? detallesRes : [];
+        setDetalles(esRolUser && miIdEmpleado ? todos.filter((d: DetalleNomina) => d.id_empleado === miIdEmpleado) : todos);
+        setRecalculandoDetalle(null);
+      }
     } catch {
-      alert("No se pudo recalcular el detalle.");
+      alert("No se pudo actualizar el concepto.");
     } finally {
+      setGuardandoConcepto(false);
       setRecalculandoDetalle(null);
     }
   };
@@ -273,38 +334,11 @@ export default function Nomina() {
       if (!res.ok) throw new Error();
       const data = await res.json();
       alert(data.mensaje || "Nómina sincronizada.");
-      await abrirDetalle(nominaActiva);
+      await cargarDetalles(nominaActiva);
     } catch {
       alert("No se pudo sincronizar.");
     } finally {
       setSincronizando(false);
-    }
-  };
-
-  const abrirEditarConcepto = (concepto: DetalleConcepto) => {
-    setEditandoConcepto(concepto);
-    setMontoConcepto(String(concepto.monto));
-  };
-
-  const handleGuardarConcepto = async () => {
-    if (!editandoConcepto) return;
-    setGuardandoConcepto(true);
-    try {
-      await fetchWithFallback(`/nomina/conceptos/${editandoConcepto.id_detalle_concepto}`, {
-        method: "PUT",
-        headers,
-        body: JSON.stringify({ monto: Number(montoConcepto) }),
-      });
-      setEditandoConcepto(null);
-      if (detalleExpandido) {
-        const res = await fetchWithFallback(`/nomina/detalles/${detalleExpandido}/conceptos`, { headers });
-        const data = await res.json();
-        setConceptosMap((prev) => ({ ...prev, [detalleExpandido]: Array.isArray(data) ? data : [] }));
-      }
-    } catch {
-      alert("No se pudo actualizar el concepto.");
-    } finally {
-      setGuardandoConcepto(false);
     }
   };
 
@@ -334,6 +368,11 @@ export default function Nomina() {
     if (estado === "Cerrada") return "bg-gray-100 text-gray-600";
     return "bg-yellow-100 text-yellow-700";
   };
+
+  const nombreDetalle = (det: DetalleNomina) =>
+    det.empleado
+      ? `${det.empleado.nombre_empleado} ${det.empleado.apellido_empleado}`
+      : `#${det.id_empleado}`;
 
   // ══════════════════════════════════════════
   // VISTA: LISTA
@@ -576,7 +615,7 @@ export default function Nomina() {
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
-                  <th className="p-4 text-left font-medium">Empleado ID</th>
+                  <th className="p-4 text-left font-medium">Empleado</th>
                   <th className="p-4 text-left font-medium">Salario Base</th>
                   <th className="p-4 text-left font-medium">H. Trabajadas</th>
                   <th className="p-4 text-left font-medium">H. Extra</th>
@@ -589,8 +628,8 @@ export default function Nomina() {
               <tbody>
                 {detalles.map((det) => (
                   <>
-                    <tr key={det.id_detalle} className={`border-t hover:bg-gray-50 transition ${detallesModificados.has(det.id_detalle) ? "bg-amber-50" : ""}`}>
-                      <td className="p-4 text-sm font-medium">#{det.id_empleado}</td>
+                    <tr key={det.id_detalle} className="border-t hover:bg-gray-50 transition">
+                      <td className="p-4 text-sm font-medium">{nombreDetalle(det)}</td>
                       <td className="p-4 text-sm">{fmt(det.salario_base)}</td>
                       <td className="p-4 text-sm">{det.horas_trabajadas}</td>
                       <td className="p-4 text-sm">{det.horas_extra}</td>
@@ -608,27 +647,17 @@ export default function Nomina() {
                             </svg>
                           </button>
                           {canEdit && nominaActiva.estado !== "Cerrada" && (
-                            <button onClick={() => abrirEditarDetalle(det)} className="text-gray-400 hover:text-amber-600 transition p-1.5 rounded-md hover:bg-amber-50" title="Editar horas">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                              </svg>
-                            </button>
-                          )}
-                          {canEdit && nominaActiva.estado !== "Cerrada" && detallesModificados.has(det.id_detalle) && (
-                            <button
-                              onClick={() => handleRecalcularDetalle(det.id_detalle)}
+                            <button onClick={() => abrirEditarDetalle(det)} className="text-gray-400 hover:text-amber-600 transition p-1.5 rounded-md hover:bg-amber-50" title="Editar horas"
                               disabled={recalculandoDetalle === det.id_detalle}
-                              className="text-green-600 hover:text-green-800 transition p-1.5 rounded-md hover:bg-green-50 disabled:opacity-50"
-                              title="Recalcular este detalle"
                             >
                               {recalculandoDetalle === det.id_detalle ? (
-                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 animate-spin text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                   <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                                 </svg>
                               ) : (
                                 <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                                 </svg>
                               )}
                             </button>
@@ -705,7 +734,7 @@ export default function Nomina() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm">
             <h3 className="text-lg font-semibold mb-1">Editar Horas</h3>
-            <p className="text-sm text-gray-500 mb-4">Empleado #{editandoDetalle.id_empleado}</p>
+            <p className="text-sm text-gray-500 mb-4">{nombreDetalle(editandoDetalle)}</p>
             <label className="block text-sm font-medium text-gray-700 mb-1">Horas Trabajadas</label>
             <input type="number" min="0" step="1" value={horasTrabajadas}
               onChange={(e) => setHorasTrabajadas(String(Math.floor(Number(e.target.value))))}
@@ -720,7 +749,7 @@ export default function Nomina() {
               <button onClick={handleGuardarDetalle} disabled={guardandoDetalle}
                 className="flex-1 bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition font-medium disabled:opacity-60"
               >
-                {guardandoDetalle ? "Guardando..." : "Guardar"}
+                {guardandoDetalle ? "Guardando y recalculando..." : "Guardar"}
               </button>
               <button onClick={() => setEditandoDetalle(null)} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-md hover:bg-gray-200 transition font-medium">
                 Cancelar
@@ -747,7 +776,7 @@ export default function Nomina() {
               <button onClick={handleGuardarConcepto} disabled={guardandoConcepto || !montoConcepto}
                 className="flex-1 bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition font-medium disabled:opacity-60"
               >
-                {guardandoConcepto ? "Guardando..." : "Guardar"}
+                {guardandoConcepto ? "Guardando y recalculando..." : "Guardar"}
               </button>
               <button onClick={() => setEditandoConcepto(null)} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-md hover:bg-gray-200 transition font-medium">
                 Cancelar

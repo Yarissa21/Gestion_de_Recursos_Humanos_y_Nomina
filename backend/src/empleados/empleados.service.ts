@@ -23,6 +23,51 @@ export class EmpleadosService {
     return usuario.empleado;
   }
 
+  async miPerfilCompleto(id_usuario: number) {
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id_usuario },
+      include: { empleado: true },
+    });
+
+    if (!usuario?.empleado) return null;
+
+    const id_empleado = usuario.empleado.id_empleado;
+
+    const [empleado, tiposExp, tiposAcad, docsExp, academicos] = await Promise.all([
+      this.prisma.empleado.findUnique({ where: { id_empleado } }),
+      this.prisma.tipoDocumento.findMany({ where: { eliminado: false } }),
+      this.prisma.tipoDocumentoAcademico.findMany({ where: { eliminado: false } }),
+      this.prisma.documentoExpediente.findMany({
+        where: { id_empleado, eliminado: false },
+        select: {
+          id_documento: true,
+          nombre_documento: true,
+          fecha_carga: true,
+          id_tipo: true,
+          tipo: { select: { nombre: true } },
+        },
+      }),
+      this.prisma.informacionAcademica.findMany({
+        where: { id_empleado, eliminado: false } as any,
+        include: {
+          documentos: {
+            where: { eliminado: false },
+            select: {
+              id_doc_academico: true,
+              nombre: true,
+              fecha_carga: true,
+              id_academico: true,
+              id_tipo_doc_academico: true,
+              tipo_doc: { select: { nombre: true } },
+            },
+          },
+        },
+      }),
+    ]);
+
+    return { empleado, tiposExp, tiposAcad, docsExp, academicos };
+  }
+
   async crearEmpleado(data: CreateEmpleadoDto) {
     if (!data.dpi || !data.nombre_empleado || !data.apellido_empleado) {
       throw new BadRequestException(

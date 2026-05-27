@@ -41,6 +41,11 @@ export class EmpleadosController {
   async listar() {
     return this.empleadosService.listarEmpleados();
   }
+  @Get('mi-perfil/completo')
+  @UseGuards(JwtAuthGuard)
+  async miPerfilCompleto(@Req() req: any) {
+    return this.empleadosService.miPerfilCompleto(req.user.id_usuario);
+  }
 
   @Put(':id')
   @Roles('admin')

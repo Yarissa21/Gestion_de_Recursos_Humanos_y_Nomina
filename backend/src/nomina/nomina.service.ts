@@ -326,6 +326,14 @@ export class NominaService {
   async listarDetallesNomina(id_nomina: number) {
     return this.prisma.detalleNomina.findMany({
       where: { id_nomina, eliminado: false },
+      include: {
+        empleado: {
+          select: {
+            nombre_empleado: true,
+            apellido_empleado: true,
+          },
+        },
+      },
     });
   }
 
@@ -453,11 +461,18 @@ export class NominaService {
 
     for (const concepto of conceptosCatalogo) {
       if (idsExistentes.includes(concepto.id_concepto)) {
-        const monto = this.calcularMontoConcepto(concepto, detalle.salario_base);
-        await this.prisma.detalleConceptoNomina.updateMany({
-          where: { id_detalle, id_concepto: concepto.id_concepto },
-          data: { monto },
-        });
+        const esManual =
+          concepto.porcentaje == null &&
+          concepto.monto_fijo == null &&
+          concepto.fecha_aplica == null;
+
+        if (!esManual) {
+          const monto = this.calcularMontoConcepto(concepto, detalle.salario_base);
+          await this.prisma.detalleConceptoNomina.updateMany({
+            where: { id_detalle, id_concepto: concepto.id_concepto },
+            data: { monto },
+          });
+        }
       }
     }
 
