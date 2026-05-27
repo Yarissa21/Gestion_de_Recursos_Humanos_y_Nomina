@@ -15,6 +15,7 @@ import Expediente from "../pages/Documentos/expediente";
 import TipoExpediente from "../pages/Documentos/tipo-expediente";
 import ConceptosNomina from "../pages/Nominas/concepto";
 import ValidacionExpediente from "../pages/Documentos/validacion-expediente";
+import Reportes from "../pages/Reportes/reportes";
 
 export default function AppRoutes() {
   return (
@@ -38,6 +39,7 @@ export default function AppRoutes() {
         <Route path="/tipo-expediente" element={<TipoExpediente />} />
         <Route path="/conceptos" element={<ConceptosNomina />} />
         <Route path="/validacion-expediente" element={<ValidacionExpediente />} />
+        <Route path="/reportes" element={<Reportes />} />
       </Routes>
     </BrowserRouter>
   );

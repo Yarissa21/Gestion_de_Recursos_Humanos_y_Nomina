@@ -119,6 +119,26 @@ export class NominaService {
    });
   }
 
+  async listarNominasPorEmpleado(id_usuario: number) {
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id_usuario },
+      include: { empleado: true },
+    });
+
+    if (!usuario?.empleado) {
+      return [];
+    }
+
+    const detalles = await this.prisma.detalleNomina.findMany({
+      where: { id_empleado: usuario.empleado.id_empleado, eliminado: false },
+      include: { nomina: true },
+    });
+
+    return detalles
+      .map((d) => d.nomina)
+      .filter((n) => !n.eliminado);
+  }
+
   async obtenerNomina(id: number) {
     const nomina = await this.prisma.nomina.findUnique({
       where: { id_nomina: id },

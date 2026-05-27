@@ -39,6 +39,12 @@ export class NominaController {
     return this.nominaService.listarNominas();
   }
 
+  @Get('mis-nominas')
+  @Roles('admin', 'UserRH', 'user')
+  async listarMisNominas(@Req() req: any) {
+    return this.nominaService.listarNominasPorEmpleado(req.user.id_usuario);
+  }
+
   @Get(':id')
   @Roles('admin', 'UserRH')
   async obtener(@Param('id', ParseIntPipe) id: number) {
