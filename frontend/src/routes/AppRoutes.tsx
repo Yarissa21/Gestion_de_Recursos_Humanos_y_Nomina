@@ -10,6 +10,11 @@ import Documentos from "../pages/Documentos/documentos";
 import Empleados from "../pages/Dashboard/empleados";
 import Usuarios from "../pages/Dashboard/usuarios-sistema";
 import UsuariosSistema from "../pages/Dashboard/usuarios-sistema";
+import InformacionAcademica from "../pages/Documentos/informacion-academica";
+import Expediente from "../pages/Documentos/expediente";
+import TipoExpediente from "../pages/Documentos/tipo-expediente";
+import ConceptosNomina from "../pages/Nominas/concepto";
+import ValidacionExpediente from "../pages/Documentos/validacion-expediente";
 
 export default function AppRoutes() {
   return (
@@ -28,6 +33,11 @@ export default function AppRoutes() {
         <Route path="/empleados" element={<Empleados />} />
         <Route path="/usuarios" element={<Usuarios />} />
         <Route path="/usuarios-sistema" element={<UsuariosSistema />} />
+        <Route path="/informacion-academica" element={<InformacionAcademica />} />
+        <Route path="/expediente" element={<Expediente />} />
+        <Route path="/tipo-expediente" element={<TipoExpediente />} />
+        <Route path="/conceptos" element={<ConceptosNomina />} />
+        <Route path="/validacion-expediente" element={<ValidacionExpediente />} />
       </Routes>
     </BrowserRouter>
   );

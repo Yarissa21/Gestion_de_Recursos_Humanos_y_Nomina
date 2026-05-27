@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import Header from "../../components/Header";
-import { isAdmin } from "../../utils/auth";
+import { isAdmin, isAdminOrRH } from "../../utils/auth";
 import { fetchWithFallback } from "../../utils/api";
 
 interface Departamento {
@@ -87,8 +87,8 @@ const maxFecha = new Date(hoy.getFullYear() - 18, hoy.getMonth(), hoy.getDate())
 const minFecha = new Date(hoy.getFullYear() - 100, hoy.getMonth(), hoy.getDate()).toISOString().split("T")[0];
 
 export default function Empleados() {
-  if (!isAdmin()) return <Navigate to="/dashboard" replace />;
-
+  if (!isAdminOrRH()) return <Navigate to="/dashboard" replace />;
+  
   const navigate = useNavigate();
 
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
@@ -293,24 +293,28 @@ export default function Empleados() {
               <h1 className="text-3xl font-bold">Empleados</h1>
             </div>
             <div className="flex gap-3">
-              <button
-                onClick={() => navigate("/usuarios-sistema")}
-                className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-5 py-2 rounded-md hover:bg-gray-50 transition font-medium text-sm shadow-sm"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                </svg>
-                Usuarios del Sistema
-              </button>
-              <button onClick={abrirCrear} className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2 rounded-md hover:bg-blue-700 transition font-medium">
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-                Nuevo Empleado
-              </button>
+              {isAdmin() && (
+                <button
+                  onClick={() => navigate("/usuarios-sistema")}
+                  className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-5 py-2 rounded-md hover:bg-gray-50 transition font-medium text-sm shadow-sm"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                  </svg>
+                  Usuarios del Sistema
+                </button>
+              )}
+              {isAdmin() && (
+                <button onClick={abrirCrear} className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2 rounded-md hover:bg-blue-700 transition font-medium">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  Nuevo Empleado
+                </button>
+              )}
             </div>
           </div>
 

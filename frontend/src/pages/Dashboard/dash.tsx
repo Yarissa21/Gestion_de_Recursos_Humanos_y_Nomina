@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../../components/Header";
 import { fetchWithFallback } from "../../utils/api";
+import { isAdmin } from "../../utils/auth";
 
 interface Empleado {
   id_empleado: number;
@@ -37,6 +38,8 @@ export default function Dashboard() {
   const nombre = localStorage.getItem("nombre") || "Usuario";
   const rol = localStorage.getItem("rol")?.toLowerCase() || "sin rol";
   const rolDisplay = rol.toUpperCase();
+  const esAdmin = isAdmin();
+  const esRH = rol === "userrh";
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -70,7 +73,7 @@ export default function Dashboard() {
     let _empleados: Empleado[] = [];
     let _departamentos: Departamento[] = [];
 
-    if (rol === "admin" || rol === "userrh" || rol === "usuariorh") {
+    if (rol === "admin" || rol === "userrh") {
       promesas.push(
         fetchWithFallback("/api/usuarios", { headers })
           .then((r) => r.json())
@@ -104,14 +107,16 @@ export default function Dashboard() {
       );
     }
 
-    if (rol === "admin") {
+    if (rol === "admin" || rol === "userrh") {
       promesas.push(
         fetchWithFallback("/empleados", { headers })
           .then((r) => r.json())
           .then((d) => { _empleados = Array.isArray(d) ? d : []; })
           .catch(() => {})
       );
+    }
 
+    if (rol === "admin") {
       promesas.push(
         fetchWithFallback("/departamentos", { headers })
           .then((r) => r.json())
@@ -207,17 +212,17 @@ export default function Dashboard() {
           <h1 className="text-4xl font-bold mb-1">Dashboard de Recursos Humanos</h1>
           <p className="text-gray-500 mb-10">Bienvenido, {nombre} ({rolDisplay})</p>
 
-          {(rol === "admin" || rol === "userrh" || rol === "usuariorh") && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+          {(esAdmin || esRH) && (
+            <div className={`grid grid-cols-1 sm:grid-cols-2 ${esAdmin ? "lg:grid-cols-4" : "lg:grid-cols-3"} gap-6 mb-10`}>
 
-              <button
+            <button
                 onClick={() => navigate("/empleados")}
                 className="bg-white rounded-xl shadow-sm p-6 flex justify-between items-start text-left hover:shadow-md hover:-translate-y-0.5 transition w-full"
               >
                 <div>
-                  <p className="text-gray-500 text-sm mb-1">Total Usuarios</p>
-                  <p className="text-4xl font-bold">{usuarios}</p>
-                  <p className="text-gray-400 text-sm mt-2">Empleados: {empleados.length}</p>
+                  <p className="text-gray-500 text-sm mb-1">{esAdmin ? "Total Usuarios" : "Total Empleados"}</p>
+                  <p className="text-4xl font-bold">{esAdmin ? usuarios : empleados.length}</p>
+                  <p className="text-gray-400 text-sm mt-2">{esAdmin ? `Empleados: ${empleados.length}` : "Gestión de personal"}</p>
                 </div>
                 <div className="bg-blue-100 p-3 rounded-xl">
                   <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -246,22 +251,24 @@ export default function Dashboard() {
                 </div>
               </button>
 
-              <button
-                onClick={() => navigate("/configAreas")}
-                className="bg-white rounded-xl shadow-sm p-6 flex justify-between items-start text-left hover:shadow-md hover:-translate-y-0.5 transition w-full"
-              >
-                <div>
-                  <p className="text-gray-500 text-sm mb-1">Áreas</p>
-                  <p className="text-4xl font-bold">{departamentos.length}</p>
-                  <p className="text-gray-400 text-sm mt-2">Configuradas en el sistema</p>
-                </div>
-                <div className="bg-purple-100 p-3 rounded-xl">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <circle cx="12" cy="12" r="3" />
-                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-                  </svg>
-                </div>
-              </button>
+              {esAdmin && (
+                <button
+                  onClick={() => navigate("/configAreas")}
+                  className="bg-white rounded-xl shadow-sm p-6 flex justify-between items-start text-left hover:shadow-md hover:-translate-y-0.5 transition w-full"
+                >
+                  <div>
+                    <p className="text-gray-500 text-sm mb-1">Áreas</p>
+                    <p className="text-4xl font-bold">{departamentos.length}</p>
+                    <p className="text-gray-400 text-sm mt-2">Configuradas en el sistema</p>
+                  </div>
+                  <div className="bg-purple-100 p-3 rounded-xl">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg>
+                  </div>
+                </button>
+              )}
 
               <button
                 onClick={() => navigate("/documentos")}
@@ -298,7 +305,7 @@ export default function Dashboard() {
             </div>
           )}
 
-          {(rol === "admin" || rol === "userrh" || rol === "usuariorh") && (
+          {(esAdmin || esRH) && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
               <div className="bg-white rounded-xl shadow-sm p-6">
@@ -331,23 +338,20 @@ export default function Dashboard() {
                 )}
               </div>
 
-              <div className="bg-white rounded-xl shadow-sm p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold">Áreas Configuradas</h3>
-                  {rol === "admin" && (
+              {esAdmin ? (
+                <div className="bg-white rounded-xl shadow-sm p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold">Áreas Configuradas</h3>
                     <button
                       onClick={() => navigate("/configAreas")}
                       className="text-sm text-blue-600 hover:underline font-medium"
                     >
                       Gestionar →
                     </button>
-                  )}
-                </div>
-
-                {departamentos.length === 0 ? (
-                  <div className="text-center py-6">
-                    <p className="text-gray-400 mb-3">No hay áreas configuradas</p>
-                    {rol === "admin" && (
+                  </div>
+                  {departamentos.length === 0 ? (
+                    <div className="text-center py-6">
+                      <p className="text-gray-400 mb-3">No hay áreas configuradas</p>
                       <button
                         onClick={() => navigate("/configAreas")}
                         className="inline-flex items-center gap-2 bg-blue-600 text-white text-sm px-4 py-2 rounded-md hover:bg-blue-700 transition font-medium"
@@ -358,29 +362,49 @@ export default function Dashboard() {
                         </svg>
                         Crear departamento
                       </button>
-                    )}
+                    </div>
+                  ) : (
+                    <ul className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                      {departamentos.map((dep, i) => {
+                        const color = depColors[i % depColors.length];
+                        return (
+                          <li
+                            key={dep.id_departamento}
+                            className={`flex items-center justify-between border ${color.border} ${color.bg} rounded-lg px-4 py-2.5`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className={`w-2 h-2 rounded-full ${color.dot}`} />
+                              <span className={`text-sm font-medium ${color.text}`}>
+                                {dep.nombre_departamento}
+                              </span>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-white rounded-xl shadow-sm p-6">
+                  <h3 className="text-lg font-semibold mb-4">Accesos Rápidos</h3>
+                  <div className="flex flex-col gap-2">
+                    {[
+                      { label: "Expediente", path: "/expediente", color: "bg-amber-50 text-amber-700 hover:bg-amber-100" },
+                      { label: "Información Académica", path: "/informacion-academica", color: "bg-blue-50 text-blue-700 hover:bg-blue-100" },
+                      { label: "Documentos", path: "/documentos", color: "bg-yellow-50 text-yellow-700 hover:bg-yellow-100" },
+                    ].map((item) => (
+                      <button key={item.path} onClick={() => navigate(item.path)}
+                        className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition ${item.color}`}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path d="M9 18l6-6-6-6" />
+                        </svg>
+                        {item.label}
+                      </button>
+                    ))}
                   </div>
-                ) : (
-                  <ul className="space-y-2 max-h-52 overflow-y-auto pr-1">
-                    {departamentos.map((dep, i) => {
-                      const color = depColors[i % depColors.length];
-                      return (
-                        <li
-                          key={dep.id_departamento}
-                          className={`flex items-center justify-between border ${color.border} ${color.bg} rounded-lg px-4 py-2.5`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className={`w-2 h-2 rounded-full ${color.dot}`} />
-                            <span className={`text-sm font-medium ${color.text}`}>
-                              {dep.nombre_departamento}
-                            </span>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </div>
+                </div>
+              )}
 
             </div>
           )}

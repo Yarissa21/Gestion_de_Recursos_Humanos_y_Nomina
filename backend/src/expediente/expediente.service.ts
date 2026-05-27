@@ -33,10 +33,28 @@ export class ExpedienteService {
   async listarDocumentos() {
     return this.prisma.documentoExpediente.findMany({
       where: { eliminado: false },
-      include: {
-        empleado: true,
-        tipo: true,
-        usuario: true,
+      select: {
+        id_documento: true,
+        nombre_documento: true,
+        fecha_carga: true,
+        eliminado: true,
+        id_tipo: true,
+        id_empleado: true,
+        empleado: {
+          select: {
+            nombre_empleado: true,
+            apellido_empleado: true,
+          },
+        },
+        tipo: {
+          select: { nombre: true },
+        },
+        usuario: {
+          select: {
+            id_usuario: true,
+            nombre: true,
+          },
+        },
       },
     });
   }
