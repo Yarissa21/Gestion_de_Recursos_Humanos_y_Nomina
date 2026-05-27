@@ -39,7 +39,7 @@ export default function Header({ rol, nombre }: HeaderProps) {
       ? "flex items-center gap-2 px-4 py-2 rounded-md border-2 border-blue-600 text-blue-600 font-semibold transition"
       : "flex items-center gap-2 px-4 py-2 rounded-md text-gray-600 hover:bg-gray-100 transition";
 
-  const configRoutes = ["/configAreas", "/expediente", "/informacion-academica", "/tipo-expediente"];
+  const configRoutes = ["/configAreas", "/expediente", "/informacion-academica", "/tipo-expediente", "/conceptos"];
   const configActiva = configRoutes.includes(location.pathname);
 
   const configItems = [
@@ -84,6 +84,29 @@ export default function Header({ rol, nombre }: HeaderProps) {
           <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
           <rect x="9" y="3" width="6" height="4" rx="1" />
           <path d="M9 12h6" /><path d="M9 16h4" />
+        </svg>
+      ),
+    },
+    {
+      path: "/conceptos",
+      seccion: "conceptos",
+      label: "Conceptos de Nómina",
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <line x1="12" y1="1" x2="12" y2="23" />
+          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+        </svg>
+      ),
+    },
+    {
+      path: "/validacion-expediente",
+      seccion: "validacion-expediente",
+      label: "Validación de Expediente",
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+          <rect x="9" y="3" width="6" height="4" rx="1" />
+          <path d="M9 12l2 2 4-4" />
         </svg>
       ),
     },
@@ -146,7 +169,7 @@ export default function Header({ rol, nombre }: HeaderProps) {
               </button>
 
               {dropdownAbierto && (
-                <div className="absolute top-full left-0 mt-1 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-50 py-1">
+                <div className="absolute top-full left-0 mt-1 w-60 bg-white border border-gray-200 rounded-xl shadow-lg z-50 py-1">
                   {itemsVisibles.map((item) => (
                     <button
                       key={item.path}

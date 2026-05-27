@@ -130,14 +130,33 @@ export class AcademicosService {
   async listarDocumentos() {
     return this.prisma.documentoAcademico.findMany({
       where: { eliminado: false },
-      include: {
+      select: {
+        id_doc_academico: true,
+        nombre: true,
+        fecha_carga: true,
+        eliminado: true,
+        id_academico: true,
+        id_tipo_doc_academico: true,
         academico: {
-          include: {
-            empleado: true,
+          select: {
+            id_academico: true,
+            empleado: {
+              select: {
+                nombre_empleado: true,
+                apellido_empleado: true,
+              },
+            },
           },
         },
-        tipo_doc: true,
-        usuario: true,
+        tipo_doc: {
+          select: { nombre: true },
+        },
+        usuario: {
+          select: {
+            id_usuario: true,
+            nombre: true,
+          },
+        },
       },
     });
   }

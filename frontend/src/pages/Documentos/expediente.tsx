@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import Header from "../../components/Header";
-import { isAdmin } from "../../utils/auth";
+import { isAdminOrRH } from "../../utils/auth";
 import { fetchWithFallback } from "../../utils/api";
 
 interface Empleado {
@@ -33,8 +33,7 @@ const parseError = (err: any): string => {
 };
 
 export default function Expediente() {
-  if (!isAdmin()) return <Navigate to="/dashboard" replace />;
-
+  if (!isAdminOrRH()) return <Navigate to="/dashboard" replace />;
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [tiposDoc, setTiposDoc] = useState<TipoDocumento[]>([]);
   const [loading, setLoading] = useState(true);

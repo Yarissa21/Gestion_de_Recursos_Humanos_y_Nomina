@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import Header from "../../components/Header";
-import { isAdmin } from "../../utils/auth";
-import { fetchWithFallback } from "../../utils/api";
+import { isAdminOrRH } from "../../utils/auth";import { fetchWithFallback } from "../../utils/api";
 
 interface EmpleadoBasico {
   id_empleado: number;
@@ -53,8 +52,7 @@ const emptyForm = {
 };
 
 export default function InformacionAcademica() {
-  if (!isAdmin()) return <Navigate to="/dashboard" replace />;
-
+  if (!isAdminOrRH()) return <Navigate to="/dashboard" replace />;
   const [empleados, setEmpleados] = useState<EmpleadoBasico[]>([]);
   const [academicos, setAcademicos] = useState<InformacionAcademica[]>([]);
   const [tiposDoc, setTiposDoc] = useState<TipoDocAcademico[]>([]);
