@@ -649,7 +649,7 @@ export class ReportesService {
             { text: 'Estado Expediente', style: 'label', margin: [0, 2, 0, 4] },
             this.badgeEstado(emp.validacion?.estado || 'SIN VALIDAR'),
             { text: ' ', margin: [0, 4] },
-            { text: 'Completitud', style: 'label', margin: [0, 2, 0, 2] },
+            { text: 'Completado', style: 'label', margin: [0, 2, 0, 2] },
             {
               text: `${porcentaje}%`,
               fontSize: 20,
