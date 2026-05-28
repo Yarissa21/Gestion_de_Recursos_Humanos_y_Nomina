@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import Header from "../../components/Header";
-import { isAdminOrRH } from "../../utils/auth";
+import { isAdmin, isAdminOrRH } from "../../utils/auth";
 import { fetchWithFallback } from "../../utils/api";
 
 interface EmpleadoBasico {
@@ -50,6 +50,9 @@ const emptyForm = {
   id_empleado: "",
 };
 
+const hoy = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000)
+  .toISOString().split("T")[0];
+  
 export default function InformacionAcademica() {
   if (!isAdminOrRH()) return <Navigate to="/dashboard" replace />;
 
@@ -156,6 +159,10 @@ export default function InformacionAcademica() {
       setErrorGlobal("Todos los campos son obligatorios.");
       return;
     }
+    if (form.fecha_graduacion > hoy) {
+      setErrorGlobal("La fecha de graduación no puede ser futura.");
+      return;
+    }
     setGuardando(true);
     setErrorGlobal("");
     try {
@@ -229,11 +236,15 @@ export default function InformacionAcademica() {
       } catch (e: any) { setErrorDoc(e.message || "No se pudo subir."); }
       finally { setSubiendoDoc(false); }
     } else if (modalDoc?.modo === "editar" && modalDoc.doc) {
+      if (!nuevoNombreDoc.trim()) { setErrorDoc("El nombre es obligatorio."); return; }
       setSubiendoDoc(true);
       setErrorDoc("");
       try {
+        const nombreFinal = nuevoNombreDoc.trim().endsWith(".pdf")
+          ? nuevoNombreDoc.trim()
+          : `${nuevoNombreDoc.trim()}.pdf`;
         const fd = new FormData();
-        if (nuevoNombreDoc.trim()) fd.append("nombre", nuevoNombreDoc.trim());
+        fd.append("nombre", nombreFinal);
         if (archivoDoc) fd.append("file", archivoDoc);
         const res = await fetchWithFallback(`/academicos/documento/${modalDoc.doc.id_doc_academico}`, {
           method: "PUT",
@@ -407,14 +418,16 @@ export default function InformacionAcademica() {
                               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                             </svg>
                           </button>
-                          <button onClick={() => handleEliminar(ac)} className="text-gray-400 hover:text-red-600 transition p-1.5 rounded-md hover:bg-red-50">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <polyline points="3 6 5 6 21 6" />
-                              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                              <path d="M10 11v6" /><path d="M14 11v6" />
-                              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                            </svg>
-                          </button>
+                          {isAdmin() && (
+                            <button onClick={() => handleEliminar(ac)} className="text-gray-400 hover:text-red-600 transition p-1.5 rounded-md hover:bg-red-50">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <polyline points="3 6 5 6 21 6" />
+                                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                                <path d="M10 11v6" /><path d="M14 11v6" />
+                                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                              </svg>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -477,7 +490,7 @@ export default function InformacionAcademica() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Graduación</label>
-                <input type="date" value={form.fecha_graduacion}
+                <input type="date" value={form.fecha_graduacion} max={hoy}
                   onChange={(e) => setForm((p) => ({ ...p, fecha_graduacion: e.target.value }))}
                   className="border border-gray-300 rounded-md w-full p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
@@ -556,14 +569,16 @@ export default function InformacionAcademica() {
                                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                               </svg>
                             </button>
-                            <button onClick={() => handleEliminarDoc(docExistente)} className="text-gray-400 hover:text-red-600 transition p-1.5 rounded-md hover:bg-red-50" title="Eliminar">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <polyline points="3 6 5 6 21 6" />
-                                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                                <path d="M10 11v6" /><path d="M14 11v6" />
-                                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                              </svg>
-                            </button>
+                            {isAdmin() && (
+                              <button onClick={() => handleEliminarDoc(docExistente)} className="text-gray-400 hover:text-red-600 transition p-1.5 rounded-md hover:bg-red-50" title="Eliminar">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <polyline points="3 6 5 6 21 6" />
+                                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                                  <path d="M10 11v6" /><path d="M14 11v6" />
+                                  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                                </svg>
+                              </button>
+                            )}
                           </>
                         ) : (
                           <button onClick={() => abrirSubirDoc(tipo.id_tipo_doc_academico)}
@@ -605,6 +620,7 @@ export default function InformacionAcademica() {
                   onChange={(e) => setNuevoNombreDoc(e.target.value)}
                   className="border border-gray-300 rounded-md w-full p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+                <p className="text-xs text-gray-400 mt-1">Se agregará .pdf automáticamente si no lo incluyes</p>
               </div>
             )}
             <label className="block text-sm font-medium text-gray-700 mb-1">

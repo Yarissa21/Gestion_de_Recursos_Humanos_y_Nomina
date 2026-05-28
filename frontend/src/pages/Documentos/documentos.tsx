@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import Header from "../../components/Header";
-import { isAdminOrRH } from "../../utils/auth";
+import { isAdmin, isAdminOrRH } from "../../utils/auth";
 import { fetchWithFallback } from "../../utils/api";
 
 interface Usuario {
@@ -79,10 +79,7 @@ export default function Documentos() {
   const nombre = localStorage.getItem("nombre") || "Usuario";
   const rol = localStorage.getItem("rol")?.toLowerCase() || "sin rol";
   const token = localStorage.getItem("token");
-  const headers = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
+  const headers = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
 
   const LOCAL = "http://localhost:3000";
   const REMOTE = "https://gestion-de-recursos-humanos-y-nomina.onrender.com";
@@ -142,9 +139,7 @@ export default function Documentos() {
   });
 
   const cerrarPrevia = () => {
-    if (archivoPrevia && archivoPrevia !== "error") {
-      URL.revokeObjectURL(archivoPrevia);
-    }
+    if (archivoPrevia && archivoPrevia !== "error") URL.revokeObjectURL(archivoPrevia);
     setPrevistaDoc(null);
     setArchivoPrevia(null);
   };
@@ -159,19 +154,15 @@ export default function Documentos() {
         ? `/expediente/documento/${id}/archivo`
         : `/academicos/documento/${id}/archivo`;
       const base = await getBase();
-
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
-
       const res = await fetch(`${base}${url}`, {
         headers: { Authorization: `Bearer ${token}` },
         signal: controller.signal,
       });
       clearTimeout(timeout);
-
       const blob = await res.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      setArchivoPrevia(objectUrl);
+      setArchivoPrevia(URL.createObjectURL(blob));
     } catch {
       setArchivoPrevia("error");
     } finally {
@@ -372,14 +363,16 @@ export default function Documentos() {
                             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                           </svg>
                         </button>
-                        <button onClick={() => handleEliminar(doc)} className="text-gray-400 hover:text-red-600 transition p-1.5 rounded-md hover:bg-red-50" title="Eliminar">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <polyline points="3 6 5 6 21 6" />
-                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                            <path d="M10 11v6" /><path d="M14 11v6" />
-                            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                          </svg>
-                        </button>
+                        {isAdmin() && (
+                          <button onClick={() => handleEliminar(doc)} className="text-gray-400 hover:text-red-600 transition p-1.5 rounded-md hover:bg-red-50" title="Eliminar">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <polyline points="3 6 5 6 21 6" />
+                              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                              <path d="M10 11v6" /><path d="M14 11v6" />
+                              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                            </svg>
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -428,8 +421,7 @@ export default function Documentos() {
                   </svg>
                   <p className="text-gray-500 text-sm font-medium">No se puede mostrar la vista previa de este archivo</p>
                   <p className="text-gray-400 text-xs">El archivo es muy grande o tardó demasiado en cargar</p>
-                  <button
-                    onClick={() => previstaDoc && handleDescargar(previstaDoc)}
+                  <button onClick={() => previstaDoc && handleDescargar(previstaDoc)}
                     className="mt-2 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium px-3 py-1.5 rounded-md hover:bg-blue-50 transition"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

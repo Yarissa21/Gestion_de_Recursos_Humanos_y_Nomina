@@ -151,6 +151,7 @@ export default function MiPerfil() {
     try {
       const res = await fetchWithFallback("/empleados/mi-perfil/completo", { headers });
       const data = await res.json();
+      console.log("DATA COMPLETO:", JSON.stringify(data?.academicos, null, 2));
       if (!data?.empleado) return;
       setTiposExp(Array.isArray(data.tiposExp) ? data.tiposExp : []);
       setTiposAcad(Array.isArray(data.tiposAcad) ? data.tiposAcad : []);

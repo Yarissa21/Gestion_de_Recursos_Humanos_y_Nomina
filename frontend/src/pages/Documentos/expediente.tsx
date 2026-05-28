@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import Header from "../../components/Header";
-import { isAdminOrRH } from "../../utils/auth";
+import { isAdmin, isAdminOrRH } from "../../utils/auth";
 import { fetchWithFallback } from "../../utils/api";
 
 interface Empleado {
@@ -19,7 +19,6 @@ interface TipoDocumento {
 interface DocumentoExpediente {
   id_documento: number;
   nombre_documento: string;
-  archivo: string;
   fecha_carga: string;
   id_tipo: number;
   tipo: { nombre: string };
@@ -34,6 +33,7 @@ const parseError = (err: any): string => {
 
 export default function Expediente() {
   if (!isAdminOrRH()) return <Navigate to="/dashboard" replace />;
+
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [tiposDoc, setTiposDoc] = useState<TipoDocumento[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,21 +42,31 @@ export default function Expediente() {
   const [loadingDocs, setLoadingDocs] = useState(false);
   const [busqueda, setBusqueda] = useState("");
 
-  // Modal subir/editar
   const [modalDoc, setModalDoc] = useState<{ modo: "crear" | "editar"; doc?: DocumentoExpediente; tipoId?: number } | null>(null);
   const [archivoDoc, setArchivoDoc] = useState<File | null>(null);
   const [nuevoNombreDoc, setNuevoNombreDoc] = useState("");
   const [subiendoDoc, setSubiendoDoc] = useState(false);
   const [errorDoc, setErrorDoc] = useState("");
 
-  // Vista previa
   const [previstaDoc, setPrevistaDoc] = useState<DocumentoExpediente | null>(null);
+  const [archivoPrevia, setArchivoPrevia] = useState<string | null>(null);
+  const [cargandoPrevia, setCargandoPrevia] = useState(false);
 
   const nombre = localStorage.getItem("nombre") || "Usuario";
   const rol = localStorage.getItem("rol")?.toLowerCase() || "sin rol";
   const token = localStorage.getItem("token");
   const id_usuario = localStorage.getItem("id_usuario") || "1";
   const headers = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
+
+  const LOCAL = "http://localhost:3000";
+  const REMOTE = "https://gestion-de-recursos-humanos-y-nomina.onrender.com";
+
+  const getBase = async () => {
+    try {
+      await fetch(`${LOCAL}/health`, { signal: AbortSignal.timeout(2000) });
+      return LOCAL;
+    } catch { return REMOTE; }
+  };
 
   const cargarDatos = () => {
     setLoading(true);
@@ -114,21 +124,32 @@ export default function Expediente() {
         fd.append("id_tipo", String(modalDoc.tipoId));
         fd.append("id_empleado", String(empSeleccionado.id_empleado));
         fd.append("id_usuario", id_usuario);
-        const res = await fetchWithFallback("/expediente/documento", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd });
+        const res = await fetchWithFallback("/expediente/documento", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: fd,
+        });
         if (!res.ok) { const err = await res.json(); throw new Error(parseError(err)); }
         setModalDoc(null);
         await cargarDocs(empSeleccionado.id_empleado);
       } catch (e: any) { setErrorDoc(e.message || "No se pudo subir."); }
       finally { setSubiendoDoc(false); }
     } else if (modalDoc?.modo === "editar" && modalDoc.doc) {
+      if (!nuevoNombreDoc.trim()) { setErrorDoc("El nombre es obligatorio."); return; }
       setSubiendoDoc(true);
       setErrorDoc("");
       try {
+        const base = nuevoNombreDoc.trim().toLowerCase().endsWith(".pdf")
+          ? nuevoNombreDoc.trim().slice(0, -4)
+          : nuevoNombreDoc.trim();
+        const nombreFinal = `${base}.pdf`;
         const fd = new FormData();
-        if (nuevoNombreDoc.trim()) fd.append("nombre_documento", nuevoNombreDoc.trim());
+        fd.append("nombre_documento", nombreFinal);
         if (archivoDoc) fd.append("file", archivoDoc);
         const res = await fetchWithFallback(`/expediente/documento/${modalDoc.doc.id_documento}`, {
-          method: "PUT", headers: { Authorization: `Bearer ${token}` }, body: fd,
+          method: "PUT",
+          headers: { Authorization: `Bearer ${token}` },
+          body: fd,
         });
         if (!res.ok) { const err = await res.json(); throw new Error(parseError(err)); }
         setModalDoc(null);
@@ -147,14 +168,39 @@ export default function Expediente() {
   };
 
   const handleDescargar = async (doc: DocumentoExpediente) => {
-    const LOCAL = "http://localhost:3000";
-    const REMOTE = "https://gestion-de-recursos-humanos-y-nomina.onrender.com";
-    let base = LOCAL;
-    try { await fetch(`${LOCAL}/departamentos`, { signal: AbortSignal.timeout(2000) }); } catch { base = REMOTE; }
+    const base = await getBase();
     const a = document.createElement("a");
     a.href = `${base}/expediente/documento/${doc.id_documento}/archivo?download=true`;
     a.download = doc.nombre_documento;
     a.click();
+  };
+
+  const abrirPrevia = async (doc: DocumentoExpediente) => {
+    setPrevistaDoc(doc);
+    setArchivoPrevia(null);
+    setCargandoPrevia(true);
+    try {
+      const base = await getBase();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      const res = await fetch(`${base}/expediente/documento/${doc.id_documento}/archivo`, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      const blob = await res.blob();
+      setArchivoPrevia(URL.createObjectURL(blob));
+    } catch {
+      setArchivoPrevia("error");
+    } finally {
+      setCargandoPrevia(false);
+    }
+  };
+
+  const cerrarPrevia = () => {
+    if (archivoPrevia && archivoPrevia !== "error") URL.revokeObjectURL(archivoPrevia);
+    setPrevistaDoc(null);
+    setArchivoPrevia(null);
   };
 
   const empleadosFiltrados = empleados.filter((emp) => {
@@ -181,7 +227,6 @@ export default function Expediente() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Lista empleados */}
             <div className="bg-white rounded-xl shadow-sm p-4">
               <h2 className="text-sm font-semibold text-gray-700 mb-3">Seleccionar Empleado</h2>
               <div className="relative mb-3">
@@ -207,7 +252,6 @@ export default function Expediente() {
               </ul>
             </div>
 
-            {/* Documentos del empleado */}
             <div className="md:col-span-2 bg-white rounded-xl shadow-sm p-4">
               {!empSeleccionado ? (
                 <div className="flex flex-col items-center justify-center h-64 text-gray-400">
@@ -244,7 +288,7 @@ export default function Expediente() {
                             <div className="flex items-center gap-1">
                               {docExistente ? (
                                 <>
-                                  <button onClick={() => setPrevistaDoc(docExistente)} className="text-gray-400 hover:text-blue-600 transition p-1.5 rounded-md hover:bg-blue-50" title="Ver">
+                                  <button onClick={() => abrirPrevia(docExistente)} className="text-gray-400 hover:text-blue-600 transition p-1.5 rounded-md hover:bg-blue-50" title="Ver">
                                     <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
                                     </svg>
@@ -262,14 +306,16 @@ export default function Expediente() {
                                       <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                                     </svg>
                                   </button>
-                                  <button onClick={() => handleEliminar(docExistente)} className="text-gray-400 hover:text-red-600 transition p-1.5 rounded-md hover:bg-red-50" title="Eliminar">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                      <polyline points="3 6 5 6 21 6" />
-                                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                                      <path d="M10 11v6" /><path d="M14 11v6" />
-                                      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                                    </svg>
-                                  </button>
+                                  {isAdmin() && (
+                                    <button onClick={() => handleEliminar(docExistente)} className="text-gray-400 hover:text-red-600 transition p-1.5 rounded-md hover:bg-red-50" title="Eliminar">
+                                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <polyline points="3 6 5 6 21 6" />
+                                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                                        <path d="M10 11v6" /><path d="M14 11v6" />
+                                        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                                      </svg>
+                                    </button>
+                                  )}
                                 </>
                               ) : (
                                 <button onClick={() => abrirSubir(tipo.id_tipo)}
@@ -294,7 +340,6 @@ export default function Expediente() {
         </main>
       )}
 
-      {/* ── Modal Subir / Editar Doc ── */}
       {modalDoc && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm">
@@ -314,6 +359,7 @@ export default function Expediente() {
                   onChange={(e) => setNuevoNombreDoc(e.target.value)}
                   className="border border-gray-300 rounded-md w-full p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+                <p className="text-xs text-gray-400 mt-1">Se agregará .pdf automáticamente si no lo incluyes</p>
               </div>
             )}
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -362,20 +408,58 @@ export default function Expediente() {
         </div>
       )}
 
-      {/* ── Vista Previa ── */}
       {previstaDoc && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-60 px-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl h-[80vh] flex flex-col">
             <div className="flex items-center justify-between px-5 py-3 border-b">
-              <p className="font-semibold text-sm">{previstaDoc.nombre_documento}</p>
-              <button onClick={() => setPrevistaDoc(null)} className="text-gray-400 hover:text-gray-600 p-1 rounded-md hover:bg-gray-100">
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
+              <div>
+                <p className="font-semibold text-sm">{previstaDoc.nombre_documento}</p>
+                <p className="text-xs text-gray-400">{previstaDoc.tipo?.nombre}</p>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => handleDescargar(previstaDoc)}
+                  className="flex items-center gap-1 text-xs text-green-600 hover:text-green-800 font-medium transition px-3 py-1.5 rounded-md hover:bg-green-50"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  Descargar
+                </button>
+                <button onClick={cerrarPrevia} className="text-gray-400 hover:text-gray-600 transition p-1 rounded-md hover:bg-gray-100">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
             </div>
             <div className="flex-1 overflow-hidden">
-              <iframe src={`data:application/pdf;base64,${previstaDoc.archivo}`} className="w-full h-full rounded-b-xl" title="Vista previa" />
+              {cargandoPrevia ? (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-gray-400 text-sm">Cargando documento...</p>
+                </div>
+              ) : archivoPrevia === "error" ? (
+                <div className="flex flex-col items-center justify-center h-full gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                  </svg>
+                  <p className="text-gray-500 text-sm font-medium">No se puede mostrar la vista previa de este archivo</p>
+                  <p className="text-gray-400 text-xs">El archivo es muy grande o tardó demasiado en cargar</p>
+                  <button onClick={() => previstaDoc && handleDescargar(previstaDoc)}
+                    className="mt-2 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium px-3 py-1.5 rounded-md hover:bg-blue-50 transition"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    Descargar en su lugar
+                  </button>
+                </div>
+              ) : archivoPrevia ? (
+                <iframe src={archivoPrevia} className="w-full h-full rounded-b-xl" title="Vista previa" />
+              ) : null}
             </div>
           </div>
         </div>

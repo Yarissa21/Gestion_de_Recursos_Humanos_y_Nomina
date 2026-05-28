@@ -289,6 +289,10 @@ export default function Nomina() {
 
   const handleGuardarConcepto = async () => {
     if (!editandoConcepto || !nominaActiva) return;
+    if (Number(montoConcepto) < 0) {
+      alert("El monto no puede ser negativo.");
+      return;
+    }
     setGuardandoConcepto(true);
     try {
       await fetchWithFallback(`/nomina/conceptos/${editandoConcepto.id_detalle_concepto}`, {
@@ -688,8 +692,7 @@ export default function Nomina() {
                                         {c.concepto.nombre}
                                       </p>
                                       {canEdit && nominaActiva.estado !== "Cerrada" && esManual ? (
-                                        <button onClick={() => abrirEditarConcepto(c)} className="text-gray-300 hover:text-amber-500 transition shrink-0" title="Editar monto manual">
-                                          <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <button onClick={() => abrirEditarConcepto(c)} className="text-gray-600 hover:text-amber-500 transition shrink-0" title="Editar monto manual">                                          <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                                             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                                           </svg>
@@ -699,7 +702,7 @@ export default function Nomina() {
                                           c.concepto.porcentaje != null ? `Calculado: ${c.concepto.porcentaje * 100}%` :
                                           c.concepto.monto_fijo != null ? `Monto fijo: Q${c.concepto.monto_fijo}` :
                                           c.concepto.fecha_aplica != null ? "Calculado por fecha" : ""
-                                        } className="text-gray-200 shrink-0">
+                                        } className="text-gray-600 shrink-0">
                                           <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                             <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                                             <path d="M7 11V7a5 5 0 0 1 10 0v4" />
@@ -767,7 +770,10 @@ export default function Nomina() {
             <p className="text-xs text-gray-400 mb-4">{editandoConcepto.concepto.tipo} · Ingreso manual</p>
             <label className="block text-sm font-medium text-gray-700 mb-1">Monto (Q)</label>
             <input type="number" min="0" step="0.01" value={montoConcepto}
-              onChange={(e) => setMontoConcepto(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (Number(val) >= 0 || val === "") setMontoConcepto(val);
+              }}
               onKeyDown={(e) => e.key === "Enter" && handleGuardarConcepto()}
               className="border border-gray-300 rounded-md w-full p-2 mb-6 focus:outline-none focus:ring-2 focus:ring-green-500"
               autoFocus

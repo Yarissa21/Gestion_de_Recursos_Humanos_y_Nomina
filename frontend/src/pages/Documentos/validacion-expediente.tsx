@@ -135,7 +135,10 @@ export default function ValidacionExpediente() {
           </div>
 
           <div className="grid grid-cols-4 gap-4 mb-6">
-            <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+            <div
+              className={`bg-white rounded-xl shadow-sm p-4 border cursor-pointer hover:shadow-md transition ${filtroEstado === "todos" ? "border-blue-400" : "border-gray-100"}`}
+              onClick={() => setFiltroEstado("todos")}
+            >
               <p className="text-xs text-gray-400 mb-1">Total empleados</p>
               <p className="text-3xl font-bold text-gray-800">{resultados.length}</p>
             </div>
