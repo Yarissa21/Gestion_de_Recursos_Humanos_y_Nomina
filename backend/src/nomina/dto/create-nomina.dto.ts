@@ -1,6 +1,11 @@
 import { IsString, IsNotEmpty, Matches } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateNominaDto {
+  @ApiProperty({
+    example: 'Mayo 2026',
+    description: 'Período de la nómina. Formato: "Mes Año" para mensual o "Primera/Segunda Quincena Mes Año" para quincenal',
+  })
   @IsString()
   @IsNotEmpty({ message: 'El período es obligatorio' })
   @Matches(
@@ -9,6 +14,7 @@ export class CreateNominaDto {
   )
   periodo!: string;
 
+  @ApiProperty({ example: 'Mensual', description: 'Tipo de nómina', enum: ['Mensual', 'Quincenal'] })
   @IsString()
   @IsNotEmpty({ message: 'El tipo es obligatorio' })
   @Matches(/^(Mensual|Quincenal)$/, { message: 'El tipo debe ser Mensual o Quincenal' })
