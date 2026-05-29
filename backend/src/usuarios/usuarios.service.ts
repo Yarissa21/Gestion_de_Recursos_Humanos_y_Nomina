@@ -6,17 +6,15 @@ export class UsuariosService {
   constructor(private prisma: PrismaService) {}
 
   async contarUsuarios() {
-    return this.prisma.usuario.count({
- 
-    });
+    return this.prisma.usuario.count();
   }
 
   async listarUsuarios() {
     return this.prisma.usuario.findMany({
       select: {
-        id_usuario: true,
-        nombre: true,
-        rol: true,
+        id_usuario:  true,
+        nombre:      true,
+        rol:         true,
         id_empleado: true,
       },
     });
@@ -24,15 +22,21 @@ export class UsuariosService {
 
   async vincularEmpleado(id_usuario: number, id_empleado: number) {
     const usuario = await this.prisma.usuario.findUnique({ where: { id_usuario } });
-    if (!usuario) throw new NotFoundException('Usuario no encontrado');
+    if (!usuario)
+      throw new NotFoundException('Usuario no encontrado');
+
+    if (usuario.id_empleado)
+      throw new BadRequestException('Este usuario ya tiene un empleado vinculado, desvincula primero');
 
     const empleado = await this.prisma.empleado.findUnique({ where: { id_empleado } });
-    if (!empleado || empleado.eliminado) throw new NotFoundException('Empleado no encontrado');
+    if (!empleado || empleado.eliminado)
+      throw new NotFoundException('Empleado no encontrado');
 
     const yaVinculado = await this.prisma.usuario.findFirst({
       where: { id_empleado, NOT: { id_usuario } },
     });
-    if (yaVinculado) throw new BadRequestException('Este empleado ya está vinculado a otro usuario');
+    if (yaVinculado)
+      throw new BadRequestException('Este empleado ya está vinculado a otro usuario');
 
     return this.prisma.usuario.update({
       where: { id_usuario },
@@ -43,8 +47,11 @@ export class UsuariosService {
 
   async desvincularEmpleado(id_usuario: number) {
     const usuario = await this.prisma.usuario.findUnique({ where: { id_usuario } });
-    if (!usuario) throw new NotFoundException('Usuario no encontrado');
-    if (!usuario.id_empleado) throw new BadRequestException('Este usuario no tiene empleado vinculado');
+    if (!usuario)
+      throw new NotFoundException('Usuario no encontrado');
+
+    if (!usuario.id_empleado)
+      throw new BadRequestException('Este usuario no tiene empleado vinculado');
 
     return this.prisma.usuario.update({
       where: { id_usuario },
@@ -58,8 +65,12 @@ export class UsuariosService {
       where: { id_usuario },
       include: { empleado: true },
     });
-    if (!usuario) throw new NotFoundException('Usuario no encontrado');
-    if (!usuario.empleado) throw new NotFoundException('Este usuario no tiene empleado vinculado');
+    if (!usuario)
+      throw new NotFoundException('Usuario no encontrado');
+
+    if (!usuario.empleado)
+      throw new NotFoundException('Este usuario no tiene empleado vinculado');
+
     return usuario.empleado;
   }
 }

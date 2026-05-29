@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateNominaDto } from './dto/create-nomina.dto';
 import { UpdateNominaDto } from './dto/update-nomina.dto';
@@ -13,8 +13,6 @@ export class NominaService {
   async crearNomina(dto: CreateNominaDto) {
     const hoy = new Date();
     const meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-    const mesActual = meses[hoy.getMonth()];
-    const anioActual = hoy.getFullYear();
 
     const extraerMesAnio = (periodo: string): { mes: string; anio: string } | null => {
       const mensual = periodo.match(/^([A-Za-záéíóúÁÉÍÓÚ]+) (\d{4})$/);
@@ -25,29 +23,25 @@ export class NominaService {
     };
 
     const partes = extraerMesAnio(dto.periodo);
-    if (!partes) {
-      throw new BadRequestException('Formato de periodo inválido');
-    }
-    const { mes: mesPeriodo, anio: anioPeriodo } = partes;
+    if (!partes) throw new BadRequestException('Formato de periodo inválido');
 
+    const { mes: mesPeriodo, anio: anioPeriodo } = partes;
     const anioNum = parseInt(anioPeriodo);
-    const mesNum = meses.indexOf(mesPeriodo);
-    if (mesNum === -1) {
-      throw new BadRequestException('Mes inválido en el periodo');
-    }
-    const fechaPeriodo = new Date(anioNum, mesNum, 1);
-    const inicioMesActual = new Date(anioActual, hoy.getMonth(), 1);
-    if (fechaPeriodo > inicioMesActual) {
+    const mesNum  = meses.indexOf(mesPeriodo);
+    if (mesNum === -1) throw new BadRequestException('Mes inválido en el periodo');
+
+    const fechaPeriodo    = new Date(anioNum, mesNum, 1);
+    const inicioMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    if (fechaPeriodo > inicioMesActual)
       throw new BadRequestException('No se puede crear una nómina para un mes futuro');
-    }
 
     if (dto.tipo === 'Mensual') {
       const existente = await this.prisma.nomina.findFirst({
         where: { periodo: dto.periodo, tipo: 'Mensual', eliminado: false },
       });
-      if (existente) {
+      if (existente)
         throw new BadRequestException(`Ya existe una nómina mensual para ${dto.periodo}`);
-      }
+
       const quincenaExistente = await this.prisma.nomina.findFirst({
         where: {
           tipo: 'Quincenal',
@@ -58,78 +52,63 @@ export class NominaService {
           ],
         },
       });
-      if (quincenaExistente) {
-        throw new BadRequestException(
-          `Ya existe una nómina quincenal de ${mesPeriodo} ${anioPeriodo}, no se puede crear una mensual para el mismo periodo`
-        );
-      }
+      if (quincenaExistente)
+        throw new BadRequestException(`Ya existe una nómina quincenal de ${mesPeriodo} ${anioPeriodo}, no se puede crear una mensual para el mismo periodo`);
     }
 
     if (dto.tipo === 'Quincenal') {
       const primera = `Primera Quincena ${mesPeriodo} ${anioPeriodo}`;
-      const segunda = `Segunda Quincena ${mesPeriodo} ${anioPeriodo}`;
+      const segunda  = `Segunda Quincena ${mesPeriodo} ${anioPeriodo}`;
 
-      if (dto.periodo !== primera && dto.periodo !== segunda) {
+      if (dto.periodo !== primera && dto.periodo !== segunda)
         throw new BadRequestException(`El periodo quincenal debe ser "${primera}" o "${segunda}"`);
-      }
+
       const existente = await this.prisma.nomina.findFirst({
         where: { periodo: dto.periodo, tipo: 'Quincenal', eliminado: false },
       });
-      if (existente) {
+      if (existente)
         throw new BadRequestException(`Ya existe una nómina quincenal para ${dto.periodo}`);
-      }
+
       const mensualExistente = await this.prisma.nomina.findFirst({
         where: { periodo: `${mesPeriodo} ${anioPeriodo}`, tipo: 'Mensual', eliminado: false },
       });
-      if (mensualExistente) {
-        throw new BadRequestException(
-          `Ya existe una nómina mensual de ${mesPeriodo} ${anioPeriodo}, no se puede crear una quincenal para el mismo periodo`
-        );
-      }
+      if (mensualExistente)
+        throw new BadRequestException(`Ya existe una nómina mensual de ${mesPeriodo} ${anioPeriodo}, no se puede crear una quincenal para el mismo periodo`);
     }
 
     const nomina = await this.prisma.nomina.create({
       data: {
-        periodo: dto.periodo,
-        tipo: dto.tipo,
+        periodo:        dto.periodo,
+        tipo:           dto.tipo,
         fecha_creacion: new Date(),
-        estado: 'Pendiente',
+        estado:         'Pendiente',
       },
     });
 
-    const empleados = await this.prisma.empleado.findMany({
+    const empleados      = await this.prisma.empleado.findMany({
       where: { eliminado: false, estado: { not: 'Retirado' } },
     });
-
     const horasIniciales = dto.tipo === 'Quincenal' ? 96 : 191;
 
     for (const empleado of empleados) {
       const detalle = await this.prisma.detalleNomina.create({
         data: {
-          salario_base: empleado.salario,
+          salario_base:     empleado.salario,
           horas_trabajadas: horasIniciales,
-          horas_extra: 0,
-          id_nomina: nomina.id_nomina,
-          id_empleado: empleado.id_empleado,
+          horas_extra:      0,
+          id_nomina:        nomina.id_nomina,
+          id_empleado:      empleado.id_empleado,
         },
       });
       await this.aplicarConceptosAutomaticos(detalle.id_detalle, detalle.salario_base);
-      await this.calcularTotalesDetalle(
-        detalle.id_detalle,
-        detalle.salario_base,
-        horasIniciales,
-        0,
-        dto.tipo,
-      );
+      await this.calcularTotalesDetalle(detalle.id_detalle, detalle.salario_base, horasIniciales, 0, dto.tipo);
     }
 
     return nomina;
   }
 
   async listarNominas() {
-    return this.prisma.nomina.findMany({
-    where: { eliminado: false },
-   });
+    return this.prisma.nomina.findMany({ where: { eliminado: false } });
   }
 
   async listarNominasPorEmpleado(id_usuario: number) {
@@ -138,123 +117,123 @@ export class NominaService {
       include: { empleado: true },
     });
 
-    if (!usuario?.empleado) {
-      return [];
-    }
+    if (!usuario?.empleado) return [];
 
     const detalles = await this.prisma.detalleNomina.findMany({
       where: { id_empleado: usuario.empleado.id_empleado, eliminado: false },
       include: { nomina: true },
     });
 
-    return detalles
-      .map((d) => d.nomina)
-      .filter((n) => !n.eliminado);
+    return detalles.map((d) => d.nomina).filter((n) => !n.eliminado);
   }
 
   async obtenerNomina(id: number) {
-    const nomina = await this.prisma.nomina.findUnique({
-      where: { id_nomina: id },
-    });
-    if (!nomina) {
+    const nomina = await this.prisma.nomina.findUnique({ where: { id_nomina: id } });
+    if (!nomina || nomina.eliminado)
       throw new NotFoundException(`Nómina con id ${id} no existe`);
-    }
     return nomina;
   }
 
   async actualizarNomina(id: number, dto: UpdateNominaDto) {
     const nomina = await this.obtenerNomina(id);
 
-    const hoy = new Date();
-    const meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-    const mesActual = meses[hoy.getMonth()];
-    const anioActual = hoy.getFullYear();
-
-    const tipoNomina = dto.tipo ?? nomina.tipo;
+    const hoy    = new Date();
+    const meses  = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+    const tipoNomina   = dto.tipo ?? nomina.tipo;
     const periodoNomina = dto.periodo ?? nomina.periodo;
 
     if (tipoNomina === 'Mensual') {
-      const esperado = `${mesActual} ${anioActual}`;
-      if (periodoNomina !== esperado) {
+      const esperado = `${meses[hoy.getMonth()]} ${hoy.getFullYear()}`;
+      if (periodoNomina !== esperado)
         throw new BadRequestException(`El período para nómina mensual debe ser exactamente "${esperado}"`);
-      }
+
       const existente = await this.prisma.nomina.findFirst({
         where: { periodo: periodoNomina, tipo: 'Mensual', eliminado: false, NOT: { id_nomina: id } },
       });
-      if (existente) {
+      if (existente)
         throw new BadRequestException('Ya existe una nómina mensual para este periodo');
-      }
     }
 
     if (tipoNomina === 'Quincenal') {
-      const primera = `Primera Quincena ${mesActual} ${anioActual}`;
-      const segunda = `Segunda Quincena ${mesActual} ${anioActual}`;
+      const primera = `Primera Quincena ${meses[hoy.getMonth()]} ${hoy.getFullYear()}`;
+      const segunda  = `Segunda Quincena ${meses[hoy.getMonth()]} ${hoy.getFullYear()}`;
 
-      if (periodoNomina !== primera && periodoNomina !== segunda) {
+      if (periodoNomina !== primera && periodoNomina !== segunda)
         throw new BadRequestException(`El período para nómina quincenal debe ser "${primera}" o "${segunda}"`);
-      }
+
       const existente = await this.prisma.nomina.findFirst({
         where: { periodo: periodoNomina, tipo: 'Quincenal', eliminado: false, NOT: { id_nomina: id } },
       });
-      if (existente) {
+      if (existente)
         throw new BadRequestException('Ya existe una nómina quincenal para este periodo');
-      }
     }
 
-    return this.prisma.nomina.update({
-      where: { id_nomina: id },
-      data: dto,
-    });
+    return this.prisma.nomina.update({ where: { id_nomina: id }, data: dto });
   }
 
   async eliminarNomina(id: number) {
     const nomina = await this.prisma.nomina.findUnique({
       where: { id_nomina: id },
+      include: {
+        detalles: {
+          where: { eliminado: false },
+          include: { conceptos: { where: { eliminado: false } } },
+        },
+      },
     });
 
-    if (!nomina || nomina.eliminado) {
+    if (!nomina || nomina.eliminado)
       throw new NotFoundException(`Nómina con id ${id} no existe o ya fue eliminada`);
-    }
 
-    return this.prisma.nomina.update({
-      where: { id_nomina: id },
-      data: { eliminado: true },
+    if (nomina.estado === 'Cerrada')
+      throw new BadRequestException('No se puede eliminar una nómina cerrada');
+
+    const idDetalles  = nomina.detalles.map((d) => d.id_detalle);
+    const idConceptos = nomina.detalles.flatMap((d) => d.conceptos.map((c) => c.id_detalle_concepto));
+
+    await this.prisma.$transaction(async (tx) => {
+      if (idConceptos.length > 0)
+        await tx.detalleConceptoNomina.updateMany({
+          where: { id_detalle_concepto: { in: idConceptos } },
+          data: { eliminado: true },
+        });
+
+      if (idDetalles.length > 0)
+        await tx.detalleNomina.updateMany({
+          where: { id_detalle: { in: idDetalles } },
+          data: { eliminado: true },
+        });
+
+      await tx.nomina.update({
+        where: { id_nomina: id },
+        data: { eliminado: true },
+      });
     });
+
+    return { message: `Nómina ${id} eliminada correctamente` };
   }
 
   async actualizarEstadoNomina(id_nomina: number, estado: EstadoNomina) {
-    const nomina = await this.obtenerNomina(id_nomina);
-    return this.prisma.nomina.update({
-      where: { id_nomina },
-      data: { estado },
-    });
+    await this.obtenerNomina(id_nomina);
+    return this.prisma.nomina.update({ where: { id_nomina }, data: { estado } });
   }
 
-  //_______________________Métodos Privados____________________________________
+  // ============================
+  // MÉTODOS PRIVADOS
+  // ============================
 
   private calcularMontoConcepto(concepto: any, salario_base: number): number {
     const hoy = new Date();
-
-    if (concepto.porcentaje) {
-      return salario_base * concepto.porcentaje;
-    }
-
-    if (concepto.monto_fijo) {
-      return concepto.monto_fijo;
-    }
-
+    if (concepto.porcentaje) return salario_base * concepto.porcentaje;
+    if (concepto.monto_fijo)  return concepto.monto_fijo;
     if (concepto.fecha_aplica) {
-      if (concepto.fecha_aplica.getMonth() === hoy.getMonth()) {
-        return salario_base; 
-      }
+      if (concepto.fecha_aplica.getMonth() === hoy.getMonth()) return salario_base;
     }
-
     return 0;
   }
 
   private async aplicarConceptosAutomaticos(id_detalle: number, salario_base: number) {
     const conceptos = await this.prisma.conceptoNomina.findMany({ where: { eliminado: false } });
-
     for (const concepto of conceptos) {
       const monto = this.calcularMontoConcepto(concepto, salario_base);
       await this.prisma.detalleConceptoNomina.create({
@@ -264,109 +243,85 @@ export class NominaService {
   }
 
   private async calcularTotalesDetalle(
-    id_detalle: number,
-    salario_base: number,
+    id_detalle:       number,
+    salario_base:     number,
     horas_trabajadas: number,
-    horas_extra: number,
-    tipo_nomina: string,
+    horas_extra:      number,
+    tipo_nomina:      string,
   ) {
-    const conceptos = await this.prisma.detalleConceptoNomina.findMany({
+    const conceptos       = await this.prisma.detalleConceptoNomina.findMany({
       where: { id_detalle, eliminado: false },
       include: { concepto: true },
     });
-
     const referenciaHoras = tipo_nomina === 'Quincenal' ? 96 : 191;
 
     if (horas_trabajadas > referenciaHoras) {
-      const excedente = horas_trabajadas - referenciaHoras;
-      horas_trabajadas = referenciaHoras;
-      horas_extra += excedente;
+      const excedente   = horas_trabajadas - referenciaHoras;
+      horas_trabajadas  = referenciaHoras;
+      horas_extra      += excedente;
     }
-
     if (horas_trabajadas < referenciaHoras && horas_extra > 0) {
-      const faltantes = referenciaHoras - horas_trabajadas;
-      const usadasDeExtra = Math.min(faltantes, horas_extra);
-      horas_trabajadas += usadasDeExtra;
-      horas_extra -= usadasDeExtra;
+      const faltantes      = referenciaHoras - horas_trabajadas;
+      const usadasDeExtra  = Math.min(faltantes, horas_extra);
+      horas_trabajadas    += usadasDeExtra;
+      horas_extra         -= usadasDeExtra;
     }
 
-    const tarifaHora = salario_base / 191;
+    const tarifaHora        = salario_base / 191;
     const pagoHorasNormales = Math.round(horas_trabajadas * tarifaHora * 100) / 100;
-    const pagoHorasExtra = Math.round(horas_extra * tarifaHora * 1.5 * 100) / 100;
-
-    const bonificaciones = Math.round(conceptos
-      .filter(c => c.concepto.tipo === 'Bonificacion' || c.concepto.tipo === 'Comision')
-      .reduce((sum, c) => sum + c.monto, 0) * 100) / 100;
-
-    const deducciones = Math.round(conceptos
-      .filter(c => c.concepto.tipo === 'Deduccion' || c.concepto.tipo === 'Descuento')
-      .reduce((sum, c) => sum + c.monto, 0) * 100) / 100;
-
-    const total = Math.round((pagoHorasNormales + pagoHorasExtra + bonificaciones - deducciones) * 100) / 100;
+    const pagoHorasExtra    = Math.round(horas_extra * tarifaHora * 1.5 * 100) / 100;
+    const bonificaciones    = Math.round(conceptos.filter(c => ['Bonificacion','Comision'].includes(c.concepto.tipo)).reduce((s, c) => s + c.monto, 0) * 100) / 100;
+    const deducciones       = Math.round(conceptos.filter(c => ['Deduccion','Descuento'].includes(c.concepto.tipo)).reduce((s, c) => s + c.monto, 0) * 100) / 100;
+    const total             = Math.round((pagoHorasNormales + pagoHorasExtra + bonificaciones - deducciones) * 100) / 100;
 
     await this.prisma.detalleNomina.update({
       where: { id_detalle },
-      data: {
-        horas_trabajadas,
-        horas_extra,
-        pago_horas_normales: pagoHorasNormales,
-        pago_horas_extra: pagoHorasExtra,
-        total_liquido: total,
-      },
+      data: { horas_trabajadas, horas_extra, pago_horas_normales: pagoHorasNormales, pago_horas_extra: pagoHorasExtra, total_liquido: total },
     });
 
-    return {
-      horas_trabajadas,
-      horas_extra,
-      pagoHorasNormales,
-      pagoHorasExtra,
-      bonificaciones,
-      deducciones,
-      total,
-    };
+    return { horas_trabajadas, horas_extra, pagoHorasNormales, pagoHorasExtra, bonificaciones, deducciones, total };
   }
 
-  //_________________________Detalle Nomina______________________________
+  // ============================
+  // DETALLE NÓMINA
+  // ============================
 
   async listarDetallesNomina(id_nomina: number) {
     return this.prisma.detalleNomina.findMany({
       where: { id_nomina, eliminado: false },
       include: {
-        empleado: {
-          select: {
-            nombre_empleado: true,
-            apellido_empleado: true,
-          },
-        },
+        empleado: { select: { nombre_empleado: true, apellido_empleado: true } },
       },
     });
   }
 
   async obtenerDetalleNomina(id_detalle: number) {
-    const detalle = await this.prisma.detalleNomina.findUnique({
-      where: { id_detalle },
-    });
-    if (!detalle || detalle.eliminado) {
+    const detalle = await this.prisma.detalleNomina.findUnique({ where: { id_detalle } });
+    if (!detalle || detalle.eliminado)
       throw new NotFoundException('Detalle no encontrado');
-    }
     return detalle;
   }
 
-  async actualizarDetalleNomina(id_detalle: number, dto: UpdateDetalleNominaDto, id_usuario: number,) {
+  async actualizarDetalleNomina(id_detalle: number, dto: UpdateDetalleNominaDto, id_usuario: number) {
     const detalle = await this.obtenerDetalleNomina(id_detalle);
 
-    for (const campo of Object.keys(dto)) {
-    const valorAnterior = (detalle as any)[campo];
-    const valorNuevo = (dto as any)[campo];
+    if (dto.horas_trabajadas !== undefined && !Number.isInteger(dto.horas_trabajadas))
+      throw new BadRequestException('Las horas trabajadas deben ser un número entero');
 
+    if (dto.horas_extra !== undefined && !Number.isInteger(dto.horas_extra))
+      throw new BadRequestException('Las horas extra deben ser un número entero');
+
+    for (const campo of Object.keys(dto)) {
+      const valorAnterior = (detalle as any)[campo];
+      const valorNuevo    = (dto as any)[campo];
       if (valorAnterior !== valorNuevo) {
         await this.prisma.ajusteNomina.create({
           data: {
-            descripcion: `Cambio en ${campo}`,
-            valor_anterior: valorAnterior,
-            valor_nuevo: valorNuevo,
+            descripcion:      `Cambio en ${campo}`,
+            valor_anterior:   valorAnterior,
+            valor_nuevo:      valorNuevo,
             campo_modificado: campo,
-            fecha: new Date(),
+            fecha:            new Date(),
             id_usuario,
             id_detalle,
           },
@@ -374,21 +329,33 @@ export class NominaService {
       }
     }
 
-    return this.prisma.detalleNomina.update({
-      where: { id_detalle },
-      data: dto,
-    });
+    return this.prisma.detalleNomina.update({ where: { id_detalle }, data: dto });
   }
 
   async eliminarDetalleNomina(id_detalle: number) {
-    await this.obtenerDetalleNomina(id_detalle);
-    return this.prisma.detalleNomina.update({
-      where: { id_detalle },
-      data: { eliminado: true },
+    const detalle = await this.obtenerDetalleNomina(id_detalle);
+
+    const conceptos = await this.prisma.detalleConceptoNomina.findMany({
+      where: { id_detalle, eliminado: false },
     });
+    const idConceptos = conceptos.map((c) => c.id_detalle_concepto);
+
+    await this.prisma.$transaction(async (tx) => {
+      if (idConceptos.length > 0)
+        await tx.detalleConceptoNomina.updateMany({
+          where: { id_detalle_concepto: { in: idConceptos } },
+          data: { eliminado: true },
+        });
+
+      await tx.detalleNomina.update({ where: { id_detalle }, data: { eliminado: true } });
+    });
+
+    return { message: `Detalle ${id_detalle} eliminado correctamente` };
   }
 
-  //________________________Detalle Concepto Nomina_______________________
+  // ============================
+  // DETALLE CONCEPTO NÓMINA
+  // ============================
 
   async listarDetalleConceptos(id_detalle: number) {
     return this.prisma.detalleConceptoNomina.findMany({
@@ -398,31 +365,32 @@ export class NominaService {
   }
 
   async obtenerDetalleConcepto(id_detalle_concepto: number) {
-    const detalleConcepto = await this.prisma.detalleConceptoNomina.findUnique({
+    const dc = await this.prisma.detalleConceptoNomina.findUnique({
       where: { id_detalle_concepto },
       include: { concepto: true },
     });
-    if (!detalleConcepto || detalleConcepto.eliminado) {
+    if (!dc || dc.eliminado)
       throw new NotFoundException('Detalle concepto no encontrado');
-    }
-    return detalleConcepto;
+    return dc;
   }
 
-  async actualizarDetalleConcepto(id_detalle_concepto: number, dto: UpdateDetalleConceptoDto, id_usuario: number,) {
-    const detalle_concepto = await this.obtenerDetalleConcepto(id_detalle_concepto);
+  async actualizarDetalleConcepto(id_detalle_concepto: number, dto: UpdateDetalleConceptoDto, id_usuario: number) {
+    const dc = await this.obtenerDetalleConcepto(id_detalle_concepto);
+
+    if (dto.monto !== undefined && dto.monto < 0)
+      throw new BadRequestException('El monto no puede ser negativo');
 
     for (const campo of Object.keys(dto)) {
-    const valorAnterior = (detalle_concepto as any)[campo];
-    const valorNuevo = (dto as any)[campo];
-
+      const valorAnterior = (dc as any)[campo];
+      const valorNuevo    = (dto as any)[campo];
       if (valorAnterior !== valorNuevo) {
         await this.prisma.ajusteNomina.create({
           data: {
-            descripcion: `Cambio en ${campo}`,
-            valor_anterior: valorAnterior,
-            valor_nuevo: valorNuevo,
+            descripcion:      `Cambio en ${campo}`,
+            valor_anterior:   valorAnterior,
+            valor_nuevo:      valorNuevo,
             campo_modificado: campo,
-            fecha: new Date(),
+            fecha:            new Date(),
             id_usuario,
             id_detalle_concepto,
           },
@@ -430,10 +398,7 @@ export class NominaService {
       }
     }
 
-    return this.prisma.detalleConceptoNomina.update({
-      where: { id_detalle_concepto },
-      data: dto,
-    });
+    return this.prisma.detalleConceptoNomina.update({ where: { id_detalle_concepto }, data: dto });
   }
 
   async eliminarDetalleConcepto(id_detalle_concepto: number) {
@@ -444,33 +409,24 @@ export class NominaService {
     });
   }
 
-  //_________________________Calcular Nomina______________________________
+  // ============================
+  // CALCULAR NÓMINA
+  // ============================
+
   async recalcularDetalle(id_detalle: number) {
     const detalle = await this.prisma.detalleNomina.findUnique({
       where: { id_detalle },
-      include: { 
-        nomina: true,
-        conceptos: { include: { concepto: true } },
-      },
+      include: { nomina: true, conceptos: { include: { concepto: true } } },
     });
-
-    if (!detalle || detalle.eliminado) {
+    if (!detalle || detalle.eliminado)
       throw new NotFoundException('Detalle no encontrado');
-    }
 
-    const conceptosCatalogo = await this.prisma.conceptoNomina.findMany({
-      where: { eliminado: false },
-    });
-
-    const idsExistentes = detalle.conceptos.map(c => c.id_concepto);
+    const conceptosCatalogo = await this.prisma.conceptoNomina.findMany({ where: { eliminado: false } });
+    const idsExistentes     = detalle.conceptos.map(c => c.id_concepto);
 
     for (const concepto of conceptosCatalogo) {
       if (idsExistentes.includes(concepto.id_concepto)) {
-        const esManual =
-          concepto.porcentaje == null &&
-          concepto.monto_fijo == null &&
-          concepto.fecha_aplica == null;
-
+        const esManual = concepto.porcentaje == null && concepto.monto_fijo == null && concepto.fecha_aplica == null;
         if (!esManual) {
           const monto = this.calcularMontoConcepto(concepto, detalle.salario_base);
           await this.prisma.detalleConceptoNomina.updateMany({
@@ -482,53 +438,29 @@ export class NominaService {
     }
 
     const totales = await this.calcularTotalesDetalle(
-      id_detalle,
-      detalle.salario_base,
-      detalle.horas_trabajadas,
-      detalle.horas_extra,
-      detalle.nomina.tipo,
+      id_detalle, detalle.salario_base, detalle.horas_trabajadas, detalle.horas_extra, detalle.nomina.tipo,
     );
 
-    return {
-      id_detalle,
-      empleado: detalle.id_empleado,
-      salario_base: detalle.salario_base,
-      ...totales,
-    };
+    return { id_detalle, empleado: detalle.id_empleado, salario_base: detalle.salario_base, ...totales };
   }
 
   async sincronizarEmpleadosNomina(id_nomina: number) {
     const nomina = await this.prisma.nomina.findUnique({
       where: { id_nomina },
-      include: { 
-        detalles: { 
-          where: { eliminado: false },
-          include: { conceptos: true },
-        },
-      },
+      include: { detalles: { where: { eliminado: false }, include: { conceptos: true } } },
     });
-
     if (!nomina) throw new NotFoundException('Nómina no encontrada');
 
-    const conceptosCatalogo = await this.prisma.conceptoNomina.findMany({
-      where: { eliminado: false },
-    });
-
-    const empleadosActivos = await this.prisma.empleado.findMany({
-      where: { eliminado: false, estado: { not: 'Retirado' } },
-    });
-
-    const idsConDetalle = nomina.detalles.map(d => d.id_empleado);
-    const horasIniciales = nomina.tipo === 'Quincenal' ? 96 : 191;
+    const conceptosCatalogo  = await this.prisma.conceptoNomina.findMany({ where: { eliminado: false } });
+    const empleadosActivos    = await this.prisma.empleado.findMany({ where: { eliminado: false, estado: { not: 'Retirado' } } });
+    const idsConDetalle       = nomina.detalles.map(d => d.id_empleado);
+    const horasIniciales      = nomina.tipo === 'Quincenal' ? 96 : 191;
     const empleadosAgregados: number[] = [];
-    let conceptosPropagados = 0;
+    let conceptosPropagados   = 0;
 
     for (const detalle of nomina.detalles) {
-      const idsExistentes = detalle.conceptos.map(c => c.id_concepto);
-      const conceptosFaltantes = conceptosCatalogo.filter(
-        c => !idsExistentes.includes(c.id_concepto),
-      );
-
+      const idsExistentes      = detalle.conceptos.map(c => c.id_concepto);
+      const conceptosFaltantes = conceptosCatalogo.filter(c => !idsExistentes.includes(c.id_concepto));
       for (const concepto of conceptosFaltantes) {
         const monto = this.calcularMontoConcepto(concepto, detalle.salario_base);
         await this.prisma.detalleConceptoNomina.create({
@@ -541,37 +473,27 @@ export class NominaService {
     for (const empleado of empleadosActivos) {
       if (!idsConDetalle.includes(empleado.id_empleado)) {
         const detalle = await this.prisma.detalleNomina.create({
-          data: {
-            salario_base: empleado.salario,
-            horas_trabajadas: horasIniciales,
-            horas_extra: 0,
-            id_nomina,
-            id_empleado: empleado.id_empleado,
-          },
+          data: { salario_base: empleado.salario, horas_trabajadas: horasIniciales, horas_extra: 0, id_nomina, id_empleado: empleado.id_empleado },
         });
         await this.aplicarConceptosAutomaticos(detalle.id_detalle, detalle.salario_base);
-        await this.calcularTotalesDetalle(
-          detalle.id_detalle,
-          detalle.salario_base,
-          horasIniciales,
-          0,
-          nomina.tipo,
-        );
+        await this.calcularTotalesDetalle(detalle.id_detalle, detalle.salario_base, horasIniciales, 0, nomina.tipo);
         empleadosAgregados.push(empleado.id_empleado);
       }
     }
 
     return {
       empleados_sincronizados: empleadosAgregados.length,
-      conceptos_propagados: conceptosPropagados,
-      empleados_agregados: empleadosAgregados,
+      conceptos_propagados:    conceptosPropagados,
+      empleados_agregados:     empleadosAgregados,
       mensaje: empleadosAgregados.length === 0 && conceptosPropagados === 0
         ? 'La nómina ya está sincronizada'
         : `Se agregaron ${empleadosAgregados.length} empleado(s) y se propagaron ${conceptosPropagados} concepto(s) faltante(s)`,
     };
   }
 
-  // __________________Historial_Ajuste_Nomina__________________
+  // ============================
+  // HISTORIAL AJUSTE NÓMINA
+  // ============================
 
   async historialNomina(id_nomina: number) {
     return this.prisma.ajusteNomina.findMany({
@@ -581,13 +503,8 @@ export class NominaService {
           { detalleConcepto: { detalle: { id_nomina } } },
         ],
       },
-      include: {
-        usuario: true,
-        detalle: true,
-        detalleConcepto: true,
-      },
+      include: { usuario: true, detalle: true, detalleConcepto: true },
       orderBy: { fecha: 'desc' },
     });
   }
-
 }

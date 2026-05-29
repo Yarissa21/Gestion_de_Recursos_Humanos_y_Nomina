@@ -73,8 +73,6 @@ export default function Expediente() {
     } catch { return REMOTE; }
   };
 
-  const limpiarCache = () => sessionStorage.removeItem(CACHE_KEY);
-
   const cargarDatos = async (forzar = false) => {
     if (!forzar) {
       const cache = sessionStorage.getItem(CACHE_KEY);

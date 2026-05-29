@@ -104,8 +104,10 @@ export default function InformacionAcademica() {
     } catch { return REMOTE; }
   };
 
-  const limpiarCache = () => sessionStorage.removeItem(CACHE_KEY);
-
+  const limpiarCache = () => {
+    sessionStorage.removeItem(CACHE_KEY);       
+    sessionStorage.removeItem("dashboard_cache");  
+  };
   const cargarDatos = async (forzar = false) => {
     if (!forzar) {
       const cache = sessionStorage.getItem(CACHE_KEY);

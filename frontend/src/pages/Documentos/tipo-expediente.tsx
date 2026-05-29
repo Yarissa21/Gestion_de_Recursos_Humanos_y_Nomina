@@ -58,8 +58,10 @@ export default function TipoExpediente() {
     Authorization: `Bearer ${token}`,
   };
 
-  const limpiarCache = () => sessionStorage.removeItem(CACHE_KEY);
-
+  const limpiarCache = () => {
+    sessionStorage.removeItem(CACHE_KEY);       
+    sessionStorage.removeItem("dashboard_cache");  
+  };
   const cargarTodos = async (forzar = false) => {
     if (!forzar) {
       const cache = sessionStorage.getItem(CACHE_KEY);

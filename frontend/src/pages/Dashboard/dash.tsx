@@ -33,8 +33,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const cargado = useRef(false);
 
-  const [loadingAll, setLoadingAll] = useState(() => !sessionStorage.getItem("dashboard_cache"));
-  const [_loadingDeps, setLoadingDeps] = useState(true);
+  const [loadingAll, setLoadingAll] = useState(true);
   const [errorTimeout, setErrorTimeout] = useState(false);
   const [usuarios, setUsuarios] = useState(0);
   const [nominas, setNominas] = useState(0);
@@ -52,152 +51,119 @@ export default function Dashboard() {
   const esUser = rol === "user";
 
   useEffect(() => {
-    if (cargado.current) return;
-    cargado.current = true;
+  if (cargado.current) return;
+  cargado.current = true;
 
-    const token = localStorage.getItem("token");
-    if (!token) return;
+  const token = localStorage.getItem("token");
+  if (!token) return;
 
-    const cache = sessionStorage.getItem("dashboard_cache");
-    if (cache) {
-      const data = JSON.parse(cache);
-      if (Date.now() > data._expires) {
-        sessionStorage.removeItem("dashboard_cache");
-      } else {
-        setUsuarios(data.usuarios);
-        setNominas(data.nominas);
-        setNominasList(data.nominasList);
-        setDocumentos(data.documentos);
-        setEmpleados(data.empleados);
-        setDepartamentos(data.departamentos);
-        setMiPerfil(data.miPerfil || null);
-        setLoadingAll(false);
-        setLoadingDeps(false);
-        return;
-      }
-    }
+  const headers = { Authorization: `Bearer ${token}` };
+  const promesas: Promise<any>[] = [];
 
-    const headers = { Authorization: `Bearer ${token}` };
-    const promesas: Promise<any>[] = [];
+  let _usuarios = 0;
+  let _nominas = 0;
+  let _nominasList: Nomina[] = [];
+  let _documentos = 0;
+  let _empleados: Empleado[] = [];
+  let _departamentos: Departamento[] = [];
+  let _miPerfil: MiPerfil | null = null;
 
-    let _usuarios = 0;
-    let _nominas = 0;
-    let _nominasList: Nomina[] = [];
-    let _documentos = 0;
-    let _empleados: Empleado[] = [];
-    let _departamentos: Departamento[] = [];
-    let _miPerfil: MiPerfil | null = null;
+  if (esAdmin || esRH) {
+    promesas.push(
+      fetchWithFallback("/api/usuarios", { headers })
+        .then((r) => r.json())
+        .then((d) => { _usuarios = d.total; })
+        .catch(() => {})
+    );
 
-    if (esAdmin || esRH) {
-      promesas.push(
-        fetchWithFallback("/api/usuarios", { headers })
-          .then((r) => r.json())
-          .then((d) => { _usuarios = d.total; })
-          .catch(() => {})
-      );
+    promesas.push(
+      fetchWithFallback("/nomina", { headers })
+        .then((r) => r.json())
+        .then((d) => {
+          if (Array.isArray(d)) {
+            _nominas = d.length;
+            _nominasList = d.slice(0, 3);
+          }
+        })
+        .catch(() => {})
+    );
 
-      promesas.push(
-        fetchWithFallback("/nomina", { headers })
-          .then((r) => r.json())
-          .then((d) => {
-            if (Array.isArray(d)) {
-              _nominas = d.length;
-              _nominasList = d.slice(0, 3);
-            }
-          })
-          .catch(() => {})
-      );
+    promesas.push(
+      Promise.all([
+        fetchWithFallback("/expediente/documentos", { headers }).then((r) => r.json()),
+        fetchWithFallback("/academicos/documentos", { headers }).then((r) => r.json()),
+      ])
+        .then(([exp, acad]) => {
+          _documentos =
+            (Array.isArray(exp) ? exp.length : 0) +
+            (Array.isArray(acad) ? acad.length : 0);
+        })
+        .catch(() => {})
+    );
 
-      promesas.push(
-        Promise.all([
-          fetchWithFallback("/expediente/documentos", { headers }).then((r) => r.json()),
-          fetchWithFallback("/academicos/documentos", { headers }).then((r) => r.json()),
-        ])
-          .then(([exp, acad]) => {
-            _documentos =
-              (Array.isArray(exp) ? exp.length : 0) +
-              (Array.isArray(acad) ? acad.length : 0);
-          })
-          .catch(() => {})
-      );
+    promesas.push(
+      fetchWithFallback("/empleados", { headers })
+        .then((r) => r.json())
+        .then((d) => { _empleados = Array.isArray(d) ? d : []; })
+        .catch(() => {})
+    );
+  }
 
-      promesas.push(
-        fetchWithFallback("/empleados", { headers })
-          .then((r) => r.json())
-          .then((d) => { _empleados = Array.isArray(d) ? d : []; })
-          .catch(() => {})
-      );
-    }
+  if (esAdmin) {
+    promesas.push(
+      fetchWithFallback("/departamentos", { headers })
+        .then((r) => r.json())
+        .then((d) => { _departamentos = Array.isArray(d) ? d : []; })
+        .catch(() => {})
+    );
+  }
 
-    if (esAdmin) {
-      promesas.push(
-        fetchWithFallback("/departamentos", { headers })
-          .then((r) => r.json())
-          .then((d) => { _departamentos = Array.isArray(d) ? d : []; })
-          .catch(() => {})
-      );
-    }
+  if (esUser) {
+    promesas.push(
+      fetchWithFallback("/nomina/mis-nominas", { headers })
+        .then((r) => r.json())
+        .then((d) => {
+          if (Array.isArray(d)) {
+            _nominas = d.length;
+            _nominasList = d.slice(0, 3);
+          }
+        })
+        .catch(() => {})
+    );
 
-    if (esUser) {
-      promesas.push(
-        fetchWithFallback("/nomina/mis-nominas", { headers })
-          .then((r) => r.json())
-          .then((d) => {
-            if (Array.isArray(d)) {
-              _nominas = d.length;
-              _nominasList = d.slice(0, 3);
-            }
-          })
-          .catch(() => {})
-      );
+    promesas.push(
+      fetchWithFallback("/empleados/mi-perfil", { headers })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d?.id_empleado) {
+            _miPerfil = {
+              nombre_empleado: d.nombre_empleado,
+              apellido_empleado: d.apellido_empleado,
+              salario: d.salario,
+              estado: d.estado,
+            };
+          }
+        })
+        .catch(() => {})
+    );
+  }
 
-      promesas.push(
-        fetchWithFallback("/empleados/mi-perfil", { headers })
-          .then((r) => r.json())
-          .then((d) => {
-            if (d?.id_empleado) {
-              _miPerfil = {
-                nombre_empleado: d.nombre_empleado,
-                apellido_empleado: d.apellido_empleado,
-                salario: d.salario,
-                estado: d.estado,
-              };
-            }
-          })
-          .catch(() => {})
-      );
-    }
+  const timeout = setTimeout(() => {
+    setLoadingAll(false);
+    setErrorTimeout(true);
+  }, 15000);
 
-    const timeout = setTimeout(() => {
-      setLoadingAll(false);
-      setLoadingDeps(false);
-      setErrorTimeout(true);
-    }, 15000);
-
-    Promise.all(promesas).finally(() => {
-      clearTimeout(timeout);
-
-      sessionStorage.setItem("dashboard_cache", JSON.stringify({
-        _expires: Date.now() + 5 * 60 * 1000,
-        usuarios: _usuarios,
-        nominas: _nominas,
-        nominasList: _nominasList,
-        documentos: _documentos,
-        empleados: _empleados,
-        departamentos: _departamentos,
-        miPerfil: _miPerfil,
-      }));
-
-      setUsuarios(_usuarios);
-      setNominas(_nominas);
-      setNominasList(_nominasList);
-      setDocumentos(_documentos);
-      setEmpleados(_empleados);
-      setDepartamentos(_departamentos);
-      setMiPerfil(_miPerfil);
-      setLoadingAll(false);
-      setLoadingDeps(false);
-    });
+  Promise.all(promesas).finally(() => {
+    clearTimeout(timeout);
+    setUsuarios(_usuarios);
+    setNominas(_nominas);
+    setNominasList(_nominasList);
+    setDocumentos(_documentos);
+    setEmpleados(_empleados);
+    setDepartamentos(_departamentos);
+    setMiPerfil(_miPerfil);
+    setLoadingAll(false);
+  });
   }, [rol]);
 
   const depColors = [
@@ -236,7 +202,6 @@ export default function Dashboard() {
             onClick={() => {
               setErrorTimeout(false);
               setLoadingAll(true);
-              sessionStorage.removeItem("dashboard_cache");
               window.location.reload();
             }}
             className="mt-2 bg-blue-600 text-white px-5 py-2 rounded-md hover:bg-blue-700 transition font-medium text-sm"

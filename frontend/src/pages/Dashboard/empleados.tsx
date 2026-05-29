@@ -117,7 +117,10 @@ export default function Empleados() {
     Authorization: `Bearer ${token}`,
   };
 
-  const limpiarCache = () => sessionStorage.removeItem(CACHE_KEY);
+  const limpiarCache = () => {
+    sessionStorage.removeItem(CACHE_KEY);       
+    sessionStorage.removeItem("dashboard_cache");  
+  };
 
   const cargarDatos = async (forzar = false) => {
     if (!forzar) {

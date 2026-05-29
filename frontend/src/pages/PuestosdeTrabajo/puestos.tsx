@@ -49,8 +49,10 @@ export default function Puestos() {
     Authorization: `Bearer ${token}`,
   };
 
-  const limpiarCache = () => sessionStorage.removeItem(CACHE_KEY);
-
+  const limpiarCache = () => {
+    sessionStorage.removeItem(CACHE_KEY);       
+    sessionStorage.removeItem("dashboard_cache");  
+  };
   const cargarDatos = async (forzar = false) => {
     if (!forzar) {
       const cache = sessionStorage.getItem(CACHE_KEY);
