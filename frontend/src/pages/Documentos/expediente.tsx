@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navigate } from "react-router-dom";
 import Header from "../../components/Header";
 import { isAdmin, isAdminOrRH } from "../../utils/auth";
@@ -31,8 +31,13 @@ const parseError = (err: any): string => {
   return "Error desconocido";
 };
 
+const CACHE_KEY = "cache_expediente_base";
+const CACHE_TTL = 5 * 60 * 1000;
+
 export default function Expediente() {
   if (!isAdminOrRH()) return <Navigate to="/dashboard" replace />;
+
+  const cargado = useRef(false);
 
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [tiposDoc, setTiposDoc] = useState<TipoDocumento[]>([]);
@@ -68,21 +73,46 @@ export default function Expediente() {
     } catch { return REMOTE; }
   };
 
-  const cargarDatos = () => {
+  const limpiarCache = () => sessionStorage.removeItem(CACHE_KEY);
+
+  const cargarDatos = async (forzar = false) => {
+    if (!forzar) {
+      const cache = sessionStorage.getItem(CACHE_KEY);
+      if (cache) {
+        const data = JSON.parse(cache);
+        if (Date.now() < data._expires) {
+          setEmpleados(data.empleados);
+          setTiposDoc(data.tiposDoc);
+          setLoading(false);
+          return;
+        }
+        sessionStorage.removeItem(CACHE_KEY);
+      }
+    }
     setLoading(true);
     Promise.all([
       fetchWithFallback("/empleados", { headers }).then((r) => r.json()),
       fetchWithFallback("/expediente/tipos", { headers }).then((r) => r.json()),
     ])
       .then(([emps, tipos]) => {
-        setEmpleados(Array.isArray(emps) ? emps : []);
-        setTiposDoc(Array.isArray(tipos) ? tipos : []);
+        const empleados = Array.isArray(emps) ? emps : [];
+        const tiposDoc = Array.isArray(tipos) ? tipos : [];
+        setEmpleados(empleados);
+        setTiposDoc(tiposDoc);
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+          _expires: Date.now() + CACHE_TTL,
+          empleados, tiposDoc,
+        }));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { cargarDatos(); }, []);
+  useEffect(() => {
+    if (cargado.current) return;
+    cargado.current = true;
+    cargarDatos();
+  }, []);
 
   const cargarDocs = async (id_empleado: number) => {
     setLoadingDocs(true);

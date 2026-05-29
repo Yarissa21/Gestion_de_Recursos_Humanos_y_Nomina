@@ -15,62 +15,75 @@ export class NominaService {
     const meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
     const mesActual = meses[hoy.getMonth()];
     const anioActual = hoy.getFullYear();
-    const diaHoy = hoy.getDate();
-    const ultimoDiaMes = new Date(anioActual, hoy.getMonth() + 1, 0).getDate();
+
+    const extraerMesAnio = (periodo: string): { mes: string; anio: string } | null => {
+      const mensual = periodo.match(/^([A-Za-záéíóúÁÉÍÓÚ]+) (\d{4})$/);
+      if (mensual) return { mes: mensual[1], anio: mensual[2] };
+      const quincenal = periodo.match(/^(?:Primera|Segunda) Quincena ([A-Za-záéíóúÁÉÍÓÚ]+) (\d{4})$/);
+      if (quincenal) return { mes: quincenal[1], anio: quincenal[2] };
+      return null;
+    };
+
+    const partes = extraerMesAnio(dto.periodo);
+    if (!partes) {
+      throw new BadRequestException('Formato de periodo inválido');
+    }
+    const { mes: mesPeriodo, anio: anioPeriodo } = partes;
+
+    const anioNum = parseInt(anioPeriodo);
+    const mesNum = meses.indexOf(mesPeriodo);
+    if (mesNum === -1) {
+      throw new BadRequestException('Mes inválido en el periodo');
+    }
+    const fechaPeriodo = new Date(anioNum, mesNum, 1);
+    const inicioMesActual = new Date(anioActual, hoy.getMonth(), 1);
+    if (fechaPeriodo > inicioMesActual) {
+      throw new BadRequestException('No se puede crear una nómina para un mes futuro');
+    }
 
     if (dto.tipo === 'Mensual') {
-      const esperado = `${mesActual} ${anioActual}`;
-      if (dto.periodo !== esperado) {
-        throw new BadRequestException(`Solo se puede crear la nómina mensual de ${esperado}`);
-      }
       const existente = await this.prisma.nomina.findFirst({
         where: { periodo: dto.periodo, tipo: 'Mensual', eliminado: false },
       });
       if (existente) {
-        throw new BadRequestException('Ya existe una nómina mensual para este periodo');
+        throw new BadRequestException(`Ya existe una nómina mensual para ${dto.periodo}`);
       }
       const quincenaExistente = await this.prisma.nomina.findFirst({
         where: {
           tipo: 'Quincenal',
           eliminado: false,
           OR: [
-            { periodo: `Primera Quincena ${mesActual} ${anioActual}` },
-            { periodo: `Segunda Quincena ${mesActual} ${anioActual}` },
+            { periodo: `Primera Quincena ${mesPeriodo} ${anioPeriodo}` },
+            { periodo: `Segunda Quincena ${mesPeriodo} ${anioPeriodo}` },
           ],
         },
       });
       if (quincenaExistente) {
         throw new BadRequestException(
-          `Ya existe una nómina quincenal de ${mesActual} ${anioActual}, no se puede crear una mensual para el mismo periodo`
+          `Ya existe una nómina quincenal de ${mesPeriodo} ${anioPeriodo}, no se puede crear una mensual para el mismo periodo`
         );
       }
     }
 
     if (dto.tipo === 'Quincenal') {
-      const primera = `Primera Quincena ${mesActual} ${anioActual}`;
-      const segunda = `Segunda Quincena ${mesActual} ${anioActual}`;
+      const primera = `Primera Quincena ${mesPeriodo} ${anioPeriodo}`;
+      const segunda = `Segunda Quincena ${mesPeriodo} ${anioPeriodo}`;
 
-      if (dto.periodo === primera && !(diaHoy >= 1 && diaHoy <= 15)) {
-        throw new BadRequestException(`La primera quincena solo puede crearse entre el 1 y el 15 de ${mesActual} ${anioActual}`);
-      }
-      if (dto.periodo === segunda && !(diaHoy >= 16 && diaHoy <= ultimoDiaMes)) {
-        throw new BadRequestException(`La segunda quincena solo puede crearse entre el 16 y el ${ultimoDiaMes} de ${mesActual} ${anioActual}`);
-      }
       if (dto.periodo !== primera && dto.periodo !== segunda) {
-        throw new BadRequestException(`Las nóminas quincenales solo pueden ser "${primera}" o "${segunda}"`);
+        throw new BadRequestException(`El periodo quincenal debe ser "${primera}" o "${segunda}"`);
       }
       const existente = await this.prisma.nomina.findFirst({
         where: { periodo: dto.periodo, tipo: 'Quincenal', eliminado: false },
       });
       if (existente) {
-        throw new BadRequestException('Ya existe una nómina quincenal para este periodo');
+        throw new BadRequestException(`Ya existe una nómina quincenal para ${dto.periodo}`);
       }
       const mensualExistente = await this.prisma.nomina.findFirst({
-        where: { periodo: `${mesActual} ${anioActual}`, tipo: 'Mensual', eliminado: false },
+        where: { periodo: `${mesPeriodo} ${anioPeriodo}`, tipo: 'Mensual', eliminado: false },
       });
       if (mensualExistente) {
         throw new BadRequestException(
-          `Ya existe una nómina mensual de ${mesActual} ${anioActual}, no se puede crear una quincenal para el mismo periodo`
+          `Ya existe una nómina mensual de ${mesPeriodo} ${anioPeriodo}, no se puede crear una quincenal para el mismo periodo`
         );
       }
     }
@@ -156,8 +169,6 @@ export class NominaService {
     const meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
     const mesActual = meses[hoy.getMonth()];
     const anioActual = hoy.getFullYear();
-    const diaHoy = hoy.getDate();
-    const ultimoDiaMes = new Date(anioActual, hoy.getMonth() + 1, 0).getDate();
 
     const tipoNomina = dto.tipo ?? nomina.tipo;
     const periodoNomina = dto.periodo ?? nomina.periodo;
@@ -179,12 +190,6 @@ export class NominaService {
       const primera = `Primera Quincena ${mesActual} ${anioActual}`;
       const segunda = `Segunda Quincena ${mesActual} ${anioActual}`;
 
-      if (periodoNomina === primera && !(diaHoy >= 1 && diaHoy <= 15)) {
-        throw new BadRequestException(`La primera quincena solo puede actualizarse entre el 1 y el 15 de ${mesActual} ${anioActual}`);
-      }
-      if (periodoNomina === segunda && !(diaHoy >= 16 && diaHoy <= ultimoDiaMes)) {
-        throw new BadRequestException(`La segunda quincena solo puede actualizarse entre el 16 y el ${ultimoDiaMes} de ${mesActual} ${anioActual}`);
-      }
       if (periodoNomina !== primera && periodoNomina !== segunda) {
         throw new BadRequestException(`El período para nómina quincenal debe ser "${primera}" o "${segunda}"`);
       }

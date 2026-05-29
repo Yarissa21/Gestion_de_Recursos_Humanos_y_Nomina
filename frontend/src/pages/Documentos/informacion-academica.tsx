@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navigate } from "react-router-dom";
 import Header from "../../components/Header";
 import { isAdmin, isAdminOrRH } from "../../utils/auth";
@@ -52,9 +52,14 @@ const emptyForm = {
 
 const hoy = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000)
   .toISOString().split("T")[0];
-  
+
+const CACHE_KEY = "cache_academicos";
+const CACHE_TTL = 5 * 60 * 1000;
+
 export default function InformacionAcademica() {
   if (!isAdminOrRH()) return <Navigate to="/dashboard" replace />;
+
+  const cargado = useRef(false);
 
   const [empleados, setEmpleados] = useState<EmpleadoBasico[]>([]);
   const [academicos, setAcademicos] = useState<InformacionAcademica[]>([]);
@@ -99,7 +104,23 @@ export default function InformacionAcademica() {
     } catch { return REMOTE; }
   };
 
-  const cargarDatos = () => {
+  const limpiarCache = () => sessionStorage.removeItem(CACHE_KEY);
+
+  const cargarDatos = async (forzar = false) => {
+    if (!forzar) {
+      const cache = sessionStorage.getItem(CACHE_KEY);
+      if (cache) {
+        const data = JSON.parse(cache);
+        if (Date.now() < data._expires) {
+          setEmpleados(data.empleados);
+          setAcademicos(data.academicos);
+          setTiposDoc(data.tiposDoc);
+          setLoading(false);
+          return;
+        }
+        sessionStorage.removeItem(CACHE_KEY);
+      }
+    }
     setLoading(true);
     Promise.all([
       fetchWithFallback("/empleados", { headers }).then((r) => r.json()),
@@ -107,15 +128,26 @@ export default function InformacionAcademica() {
       fetchWithFallback("/tipos-documento-academico", { headers }).then((r) => r.json()),
     ])
       .then(([emps, acads, tipos]) => {
-        setEmpleados(Array.isArray(emps) ? emps : []);
-        setAcademicos(Array.isArray(acads) ? acads : []);
-        setTiposDoc(Array.isArray(tipos) ? tipos : []);
+        const empleados = Array.isArray(emps) ? emps : [];
+        const academicos = Array.isArray(acads) ? acads : [];
+        const tiposDoc = Array.isArray(tipos) ? tipos : [];
+        setEmpleados(empleados);
+        setAcademicos(academicos);
+        setTiposDoc(tiposDoc);
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+          _expires: Date.now() + CACHE_TTL,
+          empleados, academicos, tiposDoc,
+        }));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { cargarDatos(); }, []);
+  useEffect(() => {
+    if (cargado.current) return;
+    cargado.current = true;
+    cargarDatos();
+  }, []);
 
   const cargarDocsAcademico = async (id_academico: number) => {
     setLoadingDocs(true);
@@ -178,7 +210,8 @@ export default function InformacionAcademica() {
         : await fetchWithFallback("/academicos", { method: "POST", headers, body: JSON.stringify(body) });
       if (!res.ok) { const err = await res.json(); throw new Error(parseError(err)); }
       setMostrarModal(false);
-      cargarDatos();
+      limpiarCache();
+      cargarDatos(true);
     } catch (e: any) {
       setErrorGlobal(e.message || "No se pudo guardar.");
     } finally {
@@ -191,7 +224,8 @@ export default function InformacionAcademica() {
     try {
       const res = await fetchWithFallback(`/academicos/academico/${ac.id_academico}/${ac.id_empleado}`, { method: "DELETE", headers });
       if (!res.ok) { const err = await res.json(); throw new Error(parseError(err)); }
-      cargarDatos();
+      limpiarCache();
+      cargarDatos(true);
     } catch (e: any) { alert(e.message || "No se pudo eliminar."); }
   };
 
@@ -240,9 +274,10 @@ export default function InformacionAcademica() {
       setSubiendoDoc(true);
       setErrorDoc("");
       try {
-        const nombreFinal = nuevoNombreDoc.trim().endsWith(".pdf")
-          ? nuevoNombreDoc.trim()
-          : `${nuevoNombreDoc.trim()}.pdf`;
+        const base = nuevoNombreDoc.trim().toLowerCase().endsWith(".pdf")
+          ? nuevoNombreDoc.trim().slice(0, -4)
+          : nuevoNombreDoc.trim();
+        const nombreFinal = `${base}.pdf`;
         const fd = new FormData();
         fd.append("nombre", nombreFinal);
         if (archivoDoc) fd.append("file", archivoDoc);
@@ -525,7 +560,6 @@ export default function InformacionAcademica() {
                 </svg>
               </button>
             </div>
-
             {loadingDocs ? (
               <p className="text-gray-400 text-center py-6">Cargando...</p>
             ) : (

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import Header from "../../components/Header";
 import { isAdmin, isAdminOrRH } from "../../utils/auth";
@@ -60,6 +60,7 @@ const getId = (doc: Documento) =>
 export default function Documentos() {
   if (!isAdminOrRH()) return <Navigate to="/dashboard" replace />;
   const navigate = useNavigate();
+  const cargado = useRef(false);
 
   const [documentos, setDocumentos] = useState<Documento[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,7 +92,8 @@ export default function Documentos() {
     } catch { return REMOTE; }
   };
 
-  const cargarDocumentos = () => {
+  const cargarDocumentos = async (forzar = false) => {
+    if (!forzar && cargado.current) return;
     setLoading(true);
     Promise.all([
       fetchWithFallback("/expediente/documentos", { headers }).then((r) => r.json()),
@@ -114,7 +116,11 @@ export default function Documentos() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { cargarDocumentos(); }, []);
+  useEffect(() => {
+    if (cargado.current) return;
+    cargado.current = true;
+    cargarDocumentos(true);
+  }, []);
 
   const usuarios: Usuario[] = Array.from(
     new Map(
@@ -189,7 +195,7 @@ export default function Documentos() {
       doc.categoria === "expediente"
         ? await fetchWithFallback(`/expediente/documento/${id}`, { method: "DELETE", headers })
         : await fetchWithFallback(`/academicos/documento/${id}`, { method: "DELETE", headers });
-      cargarDocumentos();
+      cargarDocumentos(true);
     } catch {
       alert("No se pudo eliminar.");
     }
@@ -223,7 +229,7 @@ export default function Documentos() {
       });
       setEditandoDoc(null);
       setNuevoArchivo(null);
-      cargarDocumentos();
+      cargarDocumentos(true);
     } catch {
       alert("No se pudo actualizar.");
     } finally {
@@ -239,7 +245,6 @@ export default function Documentos() {
       <Header rol={rol} nombre={nombre} />
 
       <main className="max-w-7xl mx-auto px-6 mt-10">
-
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

@@ -45,7 +45,6 @@ export default function ConfiguracionAreas() {
   const [modal, setModal] = useState<ModalState | null>(null);
   const [guardandoModal, setGuardandoModal] = useState(false);
 
-  // formulario nueva área
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [nombreArea, setNombreArea] = useState("");
   const [guardando, setGuardando] = useState(false);

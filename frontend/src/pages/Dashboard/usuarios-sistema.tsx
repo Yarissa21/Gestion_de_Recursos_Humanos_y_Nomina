@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import Header from "../../components/Header";
 import { isAdmin } from "../../utils/auth";
@@ -31,10 +31,14 @@ const parseError = (err: any): string => {
   return "Error desconocido";
 };
 
+const CACHE_KEY = "cache_usuarios_sistema";
+const CACHE_TTL = 5 * 60 * 1000;
+
 export default function UsuariosSistema() {
   if (!isAdmin()) return <Navigate to="/dashboard" replace />;
 
   const navigate = useNavigate();
+  const cargado = useRef(false);
 
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
@@ -59,21 +63,46 @@ export default function UsuariosSistema() {
     Authorization: `Bearer ${token}`,
   };
 
-  const cargarDatos = () => {
+  const limpiarCache = () => sessionStorage.removeItem(CACHE_KEY);
+
+  const cargarDatos = async (forzar = false) => {
+    if (!forzar) {
+      const cache = sessionStorage.getItem(CACHE_KEY);
+      if (cache) {
+        const data = JSON.parse(cache);
+        if (Date.now() < data._expires) {
+          setUsuarios(data.usuarios);
+          setEmpleados(data.empleados);
+          setLoading(false);
+          return;
+        }
+        sessionStorage.removeItem(CACHE_KEY);
+      }
+    }
     setLoading(true);
     Promise.all([
       fetchWithFallback("/api/usuarios/lista", { headers }).then((r) => r.json()),
       fetchWithFallback("/empleados", { headers }).then((r) => r.json()),
     ])
       .then(([usrs, emps]) => {
-        setUsuarios(Array.isArray(usrs) ? usrs : []);
-        setEmpleados(Array.isArray(emps) ? emps : []);
+        const usuarios = Array.isArray(usrs) ? usrs : [];
+        const empleados = Array.isArray(emps) ? emps : [];
+        setUsuarios(usuarios);
+        setEmpleados(empleados);
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+          _expires: Date.now() + CACHE_TTL,
+          usuarios, empleados,
+        }));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { cargarDatos(); }, []);
+  useEffect(() => {
+    if (cargado.current) return;
+    cargado.current = true;
+    cargarDatos();
+  }, []);
 
   const empleadosLibres = empleados.filter(
     (emp) => !usuarios.some((u) => u.id_empleado === emp.id_empleado)
@@ -99,7 +128,8 @@ export default function UsuariosSistema() {
       if (!res.ok) { const err = await res.json(); throw new Error(parseError(err)); }
       setMostrarModalUser(false);
       setUserForm({ nombre: "", password: "", rol: "user" });
-      cargarDatos();
+      limpiarCache();
+      cargarDatos(true);
     } catch (e: any) {
       setErrorUser(e.message || "No se pudo crear el usuario.");
     } finally {
@@ -119,7 +149,8 @@ export default function UsuariosSistema() {
       if (!res.ok) { const err = await res.json(); throw new Error(parseError(err)); }
       setModalVincular(null);
       setEmpSeleccionado("");
-      cargarDatos();
+      limpiarCache();
+      cargarDatos(true);
     } catch (e: any) {
       alert(e.message || "No se pudo vincular.");
     } finally {
@@ -135,7 +166,8 @@ export default function UsuariosSistema() {
         headers,
       });
       if (!res.ok) { const err = await res.json(); throw new Error(parseError(err)); }
-      cargarDatos();
+      limpiarCache();
+      cargarDatos(true);
     } catch (e: any) {
       alert(e.message || "No se pudo desvincular.");
     }

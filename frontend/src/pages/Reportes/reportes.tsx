@@ -17,7 +17,6 @@ interface Empleado {
   apellido_empleado: string;
 }
 
-// ── Select con búsqueda ──────────────────────────────────────
 function SearchSelect({
   options,
   value,
@@ -119,6 +118,9 @@ function SearchSelect({
   );
 }
 
+const CACHE_KEY = "cache_reportes";
+const CACHE_TTL = 5 * 60 * 1000;
+
 export default function Reportes() {
   const rol = localStorage.getItem("rol")?.toLowerCase() || "";
   const token = localStorage.getItem("token");
@@ -127,6 +129,7 @@ export default function Reportes() {
   if (!isAdminOrRH() && !isUser()) return <Navigate to="/dashboard" replace />;
 
   const nombre = localStorage.getItem("nombre") || "Usuario";
+  const cargado = useRef(false);
 
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [nominas, setNominas] = useState<Nomina[]>([]);
@@ -136,7 +139,6 @@ export default function Reportes() {
   const [empSelAdmin, setEmpSelAdmin] = useState<number | "">("");
   const [nominaSelAdmin, setNominaSelAdmin] = useState<number | "">("");
 
-  // Detalle empleado en nómina — estados independientes con filtro cruzado
   const [nominaDetalle, setNominaDetalle] = useState<number | "">("");
   const [empDetalle, setEmpDetalle] = useState<number | "">("");
   const [empleadosEnNomina, setEmpleadosEnNomina] = useState<Empleado[]>([]);
@@ -156,39 +158,69 @@ export default function Reportes() {
     } catch { return REMOTE; }
   };
 
-  useEffect(() => {
-    const cargar = async () => {
-      setLoading(true);
-      try {
-        if (isAdminOrRH()) {
-          const [empsRes, nominasRes] = await Promise.all([
-            fetchWithFallback("/empleados", { headers }).then(r => r.json()),
-            fetchWithFallback("/nomina", { headers }).then(r => r.json()),
-          ]);
-          setEmpleados(Array.isArray(empsRes) ? empsRes : []);
-          setNominas(Array.isArray(nominasRes) ? nominasRes : []);
-        } else {
-          const [perfilRes, nominasRes] = await Promise.all([
-            fetchWithFallback("/empleados/mi-perfil", { headers }).then(r => r.json()),
-            fetchWithFallback("/nomina/mis-nominas", { headers }).then(r => r.json()),
-          ]);
-          if (perfilRes?.id_empleado) setMiEmpleado(perfilRes);
-          setNominas(Array.isArray(nominasRes) ? nominasRes : []);
+  const cargar = async (forzar = false) => {
+    if (!forzar) {
+      const cache = sessionStorage.getItem(CACHE_KEY);
+      if (cache) {
+        const data = JSON.parse(cache);
+        if (Date.now() < data._expires) {
+          if (isAdminOrRH()) {
+            setEmpleados(data.empleados || []);
+            setNominas(data.nominas || []);
+          } else {
+            if (data.miEmpleado) setMiEmpleado(data.miEmpleado);
+            setNominas(data.nominas || []);
+          }
+          setLoading(false);
+          return;
         }
-      } catch {
-      } finally {
-        setLoading(false);
+        sessionStorage.removeItem(CACHE_KEY);
       }
-    };
+    }
+    setLoading(true);
+    try {
+      if (isAdminOrRH()) {
+        const [empsRes, nominasRes] = await Promise.all([
+          fetchWithFallback("/empleados", { headers }).then(r => r.json()),
+          fetchWithFallback("/nomina", { headers }).then(r => r.json()),
+        ]);
+        const empleados = Array.isArray(empsRes) ? empsRes : [];
+        const nominas = Array.isArray(nominasRes) ? nominasRes : [];
+        setEmpleados(empleados);
+        setNominas(nominas);
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+          _expires: Date.now() + CACHE_TTL,
+          empleados, nominas,
+        }));
+      } else {
+        const [perfilRes, nominasRes] = await Promise.all([
+          fetchWithFallback("/empleados/mi-perfil", { headers }).then(r => r.json()),
+          fetchWithFallback("/nomina/mis-nominas", { headers }).then(r => r.json()),
+        ]);
+        const miEmpleado = perfilRes?.id_empleado ? perfilRes : null;
+        const nominas = Array.isArray(nominasRes) ? nominasRes : [];
+        if (miEmpleado) setMiEmpleado(miEmpleado);
+        setNominas(nominas);
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+          _expires: Date.now() + CACHE_TTL,
+          miEmpleado, nominas,
+        }));
+      }
+    } catch {
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (cargado.current) return;
+    cargado.current = true;
     cargar();
   }, []);
 
   const handleNominaDetalleChange = async (id_nomina: number | "") => {
     setNominaDetalle(id_nomina);
-    if (!id_nomina) {
-      setEmpleadosEnNomina([]);
-      return;
-    }
+    if (!id_nomina) { setEmpleadosEnNomina([]); return; }
     setLoadingFiltro(true);
     try {
       const res = await fetchWithFallback(`/nomina/${id_nomina}/detalles`, { headers });
@@ -202,7 +234,6 @@ export default function Reportes() {
             apellido_empleado: d.empleado.apellido_empleado,
           }));
         setEmpleadosEnNomina(emps);
-        // Si el empleado seleccionado no está en esta nómina, limpiarlo
         if (empDetalle && !emps.some((e: Empleado) => e.id_empleado === empDetalle)) {
           setEmpDetalle("");
         }
@@ -213,10 +244,7 @@ export default function Reportes() {
 
   const handleEmpDetalleChange = async (id_empleado: number | "") => {
     setEmpDetalle(id_empleado);
-    if (!id_empleado) {
-      setNominasDeEmpleado([]);
-      return;
-    }
+    if (!id_empleado) { setNominasDeEmpleado([]); return; }
     setLoadingFiltro(true);
     try {
       const nominasFiltradas: Nomina[] = [];
@@ -229,7 +257,6 @@ export default function Reportes() {
         } catch {}
       }
       setNominasDeEmpleado(nominasFiltradas);
-      // Si la nómina seleccionada no contiene este empleado, limpiarla
       if (nominaDetalle && !nominasFiltradas.some(n => n.id_nomina === nominaDetalle)) {
         setNominaDetalle("");
         setEmpleadosEnNomina([]);
@@ -252,9 +279,7 @@ export default function Reportes() {
 
   const btnClass = (disabled: boolean) =>
     `flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition shrink-0 ${
-      disabled
-        ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-        : "bg-blue-600 text-white hover:bg-blue-700"
+      disabled ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-blue-600 text-white hover:bg-blue-700"
     }`;
 
   const cardClass = "bg-white rounded-xl shadow-sm p-6 border border-gray-100";
@@ -304,7 +329,6 @@ export default function Reportes() {
                 </h2>
                 <div className="flex flex-col gap-4">
 
-                  {/* General */}
                   <div className="flex items-center justify-between border border-gray-100 rounded-lg px-4 py-3">
                     <div>
                       <p className="text-sm font-medium">Reporte General de Nóminas</p>
@@ -316,7 +340,6 @@ export default function Reportes() {
                     </button>
                   </div>
 
-                  {/* Nómina específica */}
                   <div className="flex items-center justify-between border border-gray-100 rounded-lg px-4 py-3 gap-4">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium">Nómina Específica</p>
@@ -338,7 +361,6 @@ export default function Reportes() {
                     </button>
                   </div>
 
-                  {/* Historial por empleado */}
                   <div className="flex items-center justify-between border border-gray-100 rounded-lg px-4 py-3 gap-4">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium">Historial de Nóminas por Empleado</p>
@@ -360,7 +382,6 @@ export default function Reportes() {
                     </button>
                   </div>
 
-                  {/* Detalle empleado en nómina — filtros cruzados */}
                   <div className="flex items-start justify-between border border-gray-100 rounded-lg px-4 py-3 gap-4">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium">Detalle de Empleado en Nómina</p>
@@ -498,7 +519,6 @@ export default function Reportes() {
 
             </div>
           ) : (
-            // VISTA USER
             <div className="flex flex-col gap-6">
               {miEmpleado ? (
                 <>
@@ -512,7 +532,6 @@ export default function Reportes() {
                     </div>
                   </div>
 
-                  {/* Nóminas user */}
                   <div className={cardClass}>
                     <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4 flex items-center gap-2">
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -532,7 +551,6 @@ export default function Reportes() {
                           <IconoPDF />{generando === "user-nominas" ? "Generando..." : "Generar PDF"}
                         </button>
                       </div>
-
                       <div className="flex items-center justify-between border border-gray-100 rounded-lg px-4 py-3 gap-4">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium">Mi Detalle en Nómina Específica</p>
@@ -559,7 +577,6 @@ export default function Reportes() {
                     </div>
                   </div>
 
-                  {/* Expediente user */}
                   <div className={cardClass}>
                     <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4 flex items-center gap-2">
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -579,7 +596,6 @@ export default function Reportes() {
                     </div>
                   </div>
 
-                  {/* Académico user */}
                   <div className={cardClass}>
                     <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4 flex items-center gap-2">
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

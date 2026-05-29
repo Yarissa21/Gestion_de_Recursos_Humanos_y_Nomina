@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import Header from "../../components/Header";
 import { isAdmin, isAdminOrRH } from "../../utils/auth";
@@ -86,10 +86,14 @@ const hoy = new Date();
 const maxFecha = new Date(hoy.getFullYear() - 18, hoy.getMonth(), hoy.getDate()).toISOString().split("T")[0];
 const minFecha = new Date(hoy.getFullYear() - 100, hoy.getMonth(), hoy.getDate()).toISOString().split("T")[0];
 
+const CACHE_KEY = "cache_empleados";
+const CACHE_TTL = 5 * 60 * 1000;
+
 export default function Empleados() {
   if (!isAdminOrRH()) return <Navigate to="/dashboard" replace />;
-  
+
   const navigate = useNavigate();
+  const cargado = useRef(false);
 
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
@@ -113,7 +117,23 @@ export default function Empleados() {
     Authorization: `Bearer ${token}`,
   };
 
-  const cargarDatos = () => {
+  const limpiarCache = () => sessionStorage.removeItem(CACHE_KEY);
+
+  const cargarDatos = async (forzar = false) => {
+    if (!forzar) {
+      const cache = sessionStorage.getItem(CACHE_KEY);
+      if (cache) {
+        const data = JSON.parse(cache);
+        if (Date.now() < data._expires) {
+          setEmpleados(data.empleados);
+          setDepartamentos(data.departamentos);
+          setPuestos(data.puestos);
+          setLoading(false);
+          return;
+        }
+        sessionStorage.removeItem(CACHE_KEY);
+      }
+    }
     setLoading(true);
     Promise.all([
       fetchWithFallback("/empleados", { headers }).then((r) => r.json()),
@@ -121,15 +141,26 @@ export default function Empleados() {
       fetchWithFallback("/puestos", { headers }).then((r) => r.json()),
     ])
       .then(([emps, deps, psts]) => {
-        setEmpleados(Array.isArray(emps) ? emps : []);
-        setDepartamentos(Array.isArray(deps) ? deps : []);
-        setPuestos(Array.isArray(psts) ? psts : []);
+        const empleados = Array.isArray(emps) ? emps : [];
+        const departamentos = Array.isArray(deps) ? deps : [];
+        const puestos = Array.isArray(psts) ? psts : [];
+        setEmpleados(empleados);
+        setDepartamentos(departamentos);
+        setPuestos(puestos);
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+          _expires: Date.now() + CACHE_TTL,
+          empleados, departamentos, puestos,
+        }));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { cargarDatos(); }, []);
+  useEffect(() => {
+    if (cargado.current) return;
+    cargado.current = true;
+    cargarDatos();
+  }, []);
 
   const puestosFiltrados = puestos.filter(
     (p) => p.id_departamento === Number(form.id_departamento)
@@ -212,17 +243,16 @@ export default function Empleados() {
         id_departamento: Number(form.id_departamento),
         id_puesto: Number(form.id_puesto),
       };
-
       const res = editando
         ? await fetchWithFallback(`/empleados/${editando.id_empleado}`, { method: "PUT", headers, body: JSON.stringify(body) })
         : await fetchWithFallback("/empleados", { method: "POST", headers, body: JSON.stringify(body) });
-
       if (!res.ok) {
         const err = await res.json();
         throw new Error(parseError(err));
       }
       setMostrarModal(false);
-      cargarDatos();
+      limpiarCache();
+      cargarDatos(true);
     } catch (e: any) {
       setErrorGlobal(e.message || "No se pudo guardar el empleado.");
     } finally {
@@ -235,7 +265,8 @@ export default function Empleados() {
     try {
       const res = await fetchWithFallback(`/empleados/${id}`, { method: "DELETE", headers });
       if (!res.ok) { const err = await res.json(); throw new Error(parseError(err)); }
-      cargarDatos();
+      limpiarCache();
+      cargarDatos(true);
     } catch (e: any) {
       alert(e.message || "No se pudo eliminar el empleado.");
     }
@@ -245,7 +276,8 @@ export default function Empleados() {
     try {
       const res = await fetchWithFallback(`/empleados/${id}/estado`, { method: "PATCH", headers, body: JSON.stringify({ estado }) });
       if (!res.ok) { const err = await res.json(); throw new Error(parseError(err)); }
-      cargarDatos();
+      limpiarCache();
+      cargarDatos(true);
     } catch (e: any) {
       alert(e.message || "No se pudo cambiar el estado.");
     }
@@ -357,12 +389,14 @@ export default function Empleados() {
             {empleadosFiltrados.length === 0 ? (
               <div className="text-center py-10">
                 <p className="text-gray-400 mb-4">No hay empleados registrados</p>
-                <button onClick={abrirCrear} className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition font-medium text-sm">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                  Crear primer empleado
-                </button>
+                {isAdmin() && (
+                  <button onClick={abrirCrear} className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition font-medium text-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    Crear primer empleado
+                  </button>
+                )}
               </div>
             ) : (
               <table className="w-full border-collapse">
@@ -393,31 +427,41 @@ export default function Empleados() {
                         Q {emp.salario.toLocaleString("es-GT", { minimumFractionDigits: 2 })}
                       </td>
                       <td className="p-4">
-                        <select value={emp.estado}
-                          onChange={(e) => handleCambiarEstado(emp.id_empleado, e.target.value)}
-                          className={`text-xs font-medium px-2 py-1 rounded-full border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer ${estadoBadge(emp.estado)}`}
-                        >
-                          <option value="Activo">Activo</option>
-                          <option value="Suspendido">Suspendido</option>
-                          <option value="Retirado">Retirado</option>
-                        </select>
+                        {isAdmin() ? (
+                          <select value={emp.estado}
+                            onChange={(e) => handleCambiarEstado(emp.id_empleado, e.target.value)}
+                            className={`text-xs font-medium px-2 py-1 rounded-full border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer ${estadoBadge(emp.estado)}`}
+                          >
+                            <option value="Activo">Activo</option>
+                            <option value="Suspendido">Suspendido</option>
+                            <option value="Retirado">Retirado</option>
+                          </select>
+                        ) : (
+                          <span className={`text-xs font-medium px-2 py-1 rounded-full ${estadoBadge(emp.estado)}`}>
+                            {emp.estado}
+                          </span>
+                        )}
                       </td>
                       <td className="p-4">
                         <div className="flex items-center justify-center gap-1">
-                          <button onClick={() => abrirEditar(emp)} className="text-gray-400 hover:text-amber-600 transition p-1.5 rounded-md hover:bg-amber-50" title="Editar">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                            </svg>
-                          </button>
-                          <button onClick={() => handleEliminar(emp.id_empleado)} className="text-gray-400 hover:text-red-600 transition p-1.5 rounded-md hover:bg-red-50" title="Eliminar">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <polyline points="3 6 5 6 21 6" />
-                              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                              <path d="M10 11v6" /><path d="M14 11v6" />
-                              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                            </svg>
-                          </button>
+                          {isAdmin() && (
+                            <button onClick={() => abrirEditar(emp)} className="text-gray-400 hover:text-amber-600 transition p-1.5 rounded-md hover:bg-amber-50" title="Editar">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                              </svg>
+                            </button>
+                          )}
+                          {isAdmin() && (
+                            <button onClick={() => handleEliminar(emp.id_empleado)} className="text-gray-400 hover:text-red-600 transition p-1.5 rounded-md hover:bg-red-50" title="Eliminar">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <polyline points="3 6 5 6 21 6" />
+                                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                                <path d="M10 11v6" /><path d="M14 11v6" />
+                                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                              </svg>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
