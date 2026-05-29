@@ -24,7 +24,7 @@ export class NominaController {
   @ApiOperation({ summary: 'Crear nómina (genera detalles para todos los empleados activos)' })
   @ApiResponse({ status: 201, description: 'Nómina creada correctamente' })
   @ApiResponse({ status: 400, description: 'Período futuro, duplicado o formato inválido' })
-  @Roles('admin')
+  @Roles('admin', 'UserRH')
   @Post()
   async crear(@Body() dto: CreateNominaDto) {
     return this.nominaService.crearNomina(dto);

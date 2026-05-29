@@ -182,10 +182,16 @@ export default function Documentos() {
       ? `/expediente/documento/${id}/archivo?download=true`
       : `/academicos/documento/${id}/archivo?download=true`;
     const base = await getBase();
+    const res = await fetch(`${base}${url}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = `${base}${url}`;
+    a.href = objectUrl;
     a.download = getNombre(doc);
     a.click();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
   };
 
   const handleEliminar = async (doc: Documento) => {

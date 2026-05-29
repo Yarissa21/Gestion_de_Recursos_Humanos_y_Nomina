@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import Header from "../../components/Header";
-import { isAdmin, isRH, isUser } from "../../utils/auth";
+import { isAdmin, isRH, isUser, isAdminOrRH } from "../../utils/auth";
 import { fetchWithFallback } from "../../utils/api";
 
 interface Nomina {
@@ -413,7 +413,7 @@ export default function Nomina() {
             </svg>
             <h1 className="text-3xl font-bold">{esRolUser ? "Mis Nóminas" : "Gestión de Nómina"}</h1>
           </div>
-          {isAdmin() && (
+          {isAdminOrRH() && (
             <button onClick={() => { setMostrarCrear(true); setErrorCrear(""); setMesSeleccionado(0); }}
               className="flex items-center gap-2 bg-green-600 text-white px-5 py-2 rounded-md hover:bg-green-700 transition font-medium">
               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -456,7 +456,7 @@ export default function Nomina() {
           ) : nominasFiltradas.length === 0 ? (
             <div className="text-center py-10">
               <p className="text-gray-400 mb-4">{esRolUser ? "No tienes nóminas registradas" : "No hay nóminas generadas"}</p>
-              {isAdmin() && (
+              {isAdminOrRH() && (
                 <button onClick={() => setMostrarCrear(true)} className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition font-medium text-sm">
                   <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
@@ -533,7 +533,7 @@ export default function Nomina() {
       </main>
 
       {/* ── Modal Crear Nómina ── */}
-      {isAdmin() && mostrarCrear && (
+      {isAdminOrRH() && mostrarCrear && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm">
             <div className="flex items-center justify-between mb-4">

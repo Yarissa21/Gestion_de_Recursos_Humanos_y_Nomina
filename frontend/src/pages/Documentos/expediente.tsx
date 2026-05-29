@@ -197,10 +197,16 @@ export default function Expediente() {
 
   const handleDescargar = async (doc: DocumentoExpediente) => {
     const base = await getBase();
+    const res = await fetch(`${base}/expediente/documento/${doc.id_documento}/archivo?download=true`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = `${base}/expediente/documento/${doc.id_documento}/archivo?download=true`;
+    a.href = url;
     a.download = doc.nombre_documento;
     a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
   };
 
   const abrirPrevia = async (doc: DocumentoExpediente) => {

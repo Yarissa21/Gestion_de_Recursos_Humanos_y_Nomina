@@ -269,9 +269,16 @@ export default function Reportes() {
     setGenerando(key);
     try {
       const base = await getBase();
-      window.open(`${base}${endpoint}`, "_blank");
+      const res = await fetch(`${base}${endpoint}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('No autorizado');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
     } catch {
-      alert("No se pudo generar el reporte.");
+      alert('No se pudo generar el reporte.');
     } finally {
       setGenerando(null);
     }

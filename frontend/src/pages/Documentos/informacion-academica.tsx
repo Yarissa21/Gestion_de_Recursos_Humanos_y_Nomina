@@ -307,10 +307,16 @@ export default function InformacionAcademica() {
 
   const handleDescargarDoc = async (doc: DocumentoAcademico) => {
     const base = await getBase();
+    const res = await fetch(`${base}/academicos/documento/${doc.id_doc_academico}/archivo?download=true`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = `${base}/academicos/documento/${doc.id_doc_academico}/archivo?download=true`;
+    a.href = url;
     a.download = doc.nombre;
     a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
   };
 
   const abrirPrevia = async (doc: DocumentoAcademico) => {

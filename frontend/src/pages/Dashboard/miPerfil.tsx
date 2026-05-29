@@ -246,10 +246,14 @@ export default function MiPerfil() {
     const url = categoria === "expediente"
       ? `${base}/expediente/documento/${id}/archivo?download=true`
       : `${base}/academicos/documento/${id}/archivo?download=true`;
+    const res = await fetch(url, { headers });
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
+    a.href = objectUrl;
     a.download = nombreArchivo;
     a.click();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
   };
 
   return (
