@@ -4,37 +4,36 @@ import {
 } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { ValidacionExpedienteService } from '../validacion-expediente/validacion-expediente.service';
 
 const PdfPrinter = require('pdfmake/src/printer');
 
 // ============================
 // PALETA CORPORATIVA
 // ============================
-const COLOR_PRIMARY   = '#1E3A5F'; 
-const COLOR_SECONDARY = '#2E86AB'; 
-const COLOR_ACCENT    = '#F0F4F8'; 
-const COLOR_WHITE     = '#FFFFFF';
-const COLOR_TEXT      = '#2D3748';
-const COLOR_MUTED     = '#718096';
-const COLOR_SUCCESS   = '#276749'; 
-const COLOR_WARNING   = '#744210'; 
+const COLOR_PRIMARY    = '#1E3A5F'; 
+const COLOR_SECONDARY  = '#2E86AB'; 
+const COLOR_ACCENT     = '#F0F4F8'; 
+const COLOR_WHITE      = '#FFFFFF';
+const COLOR_TEXT       = '#2D3748';
+const COLOR_MUTED      = '#718096';
+const COLOR_SUCCESS    = '#276749'; 
+const COLOR_WARNING    = '#744210'; 
 const COLOR_SUCCESS_BG = '#F0FFF4';
 const COLOR_WARNING_BG = '#FFFBEB';
+const COLOR_INGRESO_BG   = '#C6F6D5';
+const COLOR_DEDUCCION_BG = '#FED7D7';
 
 @Injectable()
 export class ReportesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private validacionService: ValidacionExpedienteService,) {}
 
   private fonts = {
     Roboto: {
-      normal:
-        'node_modules/roboto-font/fonts/Roboto/roboto-regular-webfont.ttf',
-      bold:
-        'node_modules/roboto-font/fonts/Roboto/roboto-bold-webfont.ttf',
-      italics:
-        'node_modules/roboto-font/fonts/Roboto/roboto-italic-webfont.ttf',
-      bolditalics:
-        'node_modules/roboto-font/fonts/Roboto/roboto-bolditalic-webfont.ttf',
+      normal:      'node_modules/roboto-font/fonts/Roboto/roboto-regular-webfont.ttf',
+      bold:        'node_modules/roboto-font/fonts/Roboto/roboto-bold-webfont.ttf',
+      italics:     'node_modules/roboto-font/fonts/Roboto/roboto-italic-webfont.ttf',
+      bolditalics: 'node_modules/roboto-font/fonts/Roboto/roboto-bolditalic-webfont.ttf',
     },
   };
 
@@ -42,60 +41,51 @@ export class ReportesService {
   // HELPERS DE DISEÑO
   // ============================
 
-  /** Encabezado corporativo reutilizable */
   private headerBlock(titulo: string, subtitulo?: string): any[] {
     return [
       {
         table: {
           widths: ['*'],
-          body: [
-            [
-              {
-                stack: [
-                  {
-                    text: 'SISTEMA DE GESTIÓN DE RRHH',
-                    fontSize: 9,
-                    color: COLOR_SECONDARY,
-                    bold: true,
-                    letterSpacing: 1,
-                  },
-                  {
-                    text: titulo,
-                    fontSize: 20,
-                    bold: true,
-                    color: COLOR_WHITE,
-                    margin: [0, 4, 0, 2],
-                  },
-                  ...(subtitulo
-                    ? [{ text: subtitulo, fontSize: 11, color: '#A8C8E8', italics: true }]
-                    : []),
-                ],
-                fillColor: COLOR_PRIMARY,
-                margin: [20, 16, 20, 16],
-              },
+          body: [[{
+            stack: [
+              { text: 'SISTEMA DE GESTIÓN DE RRHH', fontSize: 9, color: COLOR_SECONDARY, bold: true, letterSpacing: 1 },
+              { text: titulo, fontSize: 20, bold: true, color: COLOR_WHITE, margin: [0, 4, 0, 2] },
+              ...(subtitulo ? [{ text: subtitulo, fontSize: 11, color: '#A8C8E8', italics: true }] : []),
             ],
-          ],
+            fillColor: COLOR_PRIMARY,
+            margin: [20, 16, 20, 16],
+          }]],
         },
         layout: 'noBorders',
-        margin: [0, 0, 0, 16],
+        margin: [0, 0, 0, 12],
       },
     ];
   }
 
-  /** Línea divisoria con etiqueta de sección */
   private seccionBlock(texto: string): any {
     return {
       table: {
         widths: ['*'],
-        body: [[{ text: texto, bold: true, fontSize: 11, color: COLOR_WHITE, margin: [8, 5] }]],
+        body: [[{ text: texto, bold: true, fontSize: 9, color: COLOR_WHITE, margin: [8, 4] }]],
       },
       layout: 'noBorders',
-      fillColor: COLOR_SECONDARY,
-      margin: [0, 10, 0, 6],
+      fillColor: COLOR_PRIMARY,
+      margin: [0, 6, 0, 4],
     };
   }
 
-  /** Fila clave-valor dentro de una tarjeta de información */
+  private seccionBlockSub(texto: string): any {
+    return {
+      table: {
+        widths: ['*'],
+        body: [[{ text: texto, bold: true, fontSize: 8, color: COLOR_WHITE, margin: [8, 3] }]],
+      },
+      layout: 'noBorders',
+      fillColor: COLOR_SECONDARY,
+      margin: [0, 4, 0, 3],
+    };
+  }
+
   private filaInfo(clave: string, valor: string): any {
     return {
       columns: [
@@ -106,86 +96,53 @@ export class ReportesService {
     };
   }
 
-  /** Badge de estado (color según valor) */
+  // Fila compacta para tablas de datos densos
+  private filaInfoCompacta(clave: string, valor: string, anchoLabel = 100): any {
+    return {
+      columns: [
+        { text: `${clave}:`, bold: true, fontSize: 8, color: COLOR_TEXT, width: anchoLabel },
+        { text: valor || '—', fontSize: 8, color: COLOR_TEXT },
+      ],
+      margin: [0, 1, 0, 1],
+    };
+  }
+
   private badgeEstado(estado: string): any {
     const estadoUpper = (estado || '').toUpperCase();
-    let bg = '#E2E8F0';
-    let fg = COLOR_TEXT;
-
-    if (['PROCESADA', 'ACTIVO', 'APROBADO', 'COMPLETO'].includes(estadoUpper)) {
-      bg = COLOR_SUCCESS_BG; fg = COLOR_SUCCESS;
-    } else if (['PENDIENTE', 'SIN VALIDAR'].includes(estadoUpper)) {
-      bg = COLOR_WARNING_BG; fg = COLOR_WARNING;
-    } else if (['CERRADA', 'RETIRADO', 'SUSPENDIDO'].includes(estadoUpper)) {
-      bg = '#FFF5F5'; fg = '#742A2A';
-    }
-
+    let bg = '#E2E8F0', fg = COLOR_TEXT;
+    if (['PROCESADA', 'ACTIVO', 'APROBADO', 'COMPLETO'].includes(estadoUpper)) { bg = COLOR_SUCCESS_BG; fg = COLOR_SUCCESS; }
+    else if (['PENDIENTE', 'SIN VALIDAR'].includes(estadoUpper)) { bg = COLOR_WARNING_BG; fg = COLOR_WARNING; }
+    else if (['CERRADA', 'RETIRADO', 'SUSPENDIDO'].includes(estadoUpper)) { bg = '#FFF5F5'; fg = '#742A2A'; }
     return {
-      table: {
-        body: [[{ text: estado || 'SIN VALIDAR', fontSize: 8, bold: true, color: fg, margin: [6, 3] }]],
-      },
+      table: { body: [[{ text: estado || 'SIN VALIDAR', fontSize: 7, bold: true, color: fg, margin: [5, 2] }]] },
       layout: 'noBorders',
       fillColor: bg,
     };
   }
 
-  /** Tabla genérica con header de color y filas alternas */
   private tablaConceptos(filas: any[][]): any {
     if (!filas.length) return { text: '' };
-
     const header = filas[0].map((celda) => ({
-      text: String(celda),
-      bold: true,
-      fontSize: 9,
-      color: COLOR_WHITE,
-      fillColor: COLOR_PRIMARY,
-      margin: [6, 5],
+      text: String(celda), bold: true, fontSize: 8, color: COLOR_WHITE, fillColor: COLOR_PRIMARY, margin: [5, 4],
     }));
-
     const cuerpo = filas.slice(1).map((fila, i) =>
       fila.map((celda) => ({
-        text: String(celda ?? '—'),
-        fontSize: 9,
-        color: COLOR_TEXT,
-        fillColor: i % 2 === 0 ? COLOR_WHITE : COLOR_ACCENT,
-        margin: [6, 4],
+        text: String(celda ?? '—'), fontSize: 8, color: COLOR_TEXT,
+        fillColor: i % 2 === 0 ? COLOR_WHITE : COLOR_ACCENT, margin: [5, 3],
       })),
     );
-
     return {
-      table: {
-        headerRows: 1,
-        widths: Array(filas[0].length).fill('*'),
-        body: [header, ...cuerpo],
-      },
-      layout: {
-        hLineWidth: () => 0.5,
-        vLineWidth: () => 0,
-        hLineColor: () => '#CBD5E0',
-      },
-      margin: [0, 4, 0, 8],
+      table: { headerRows: 1, widths: Array(filas[0].length).fill('*'), body: [header, ...cuerpo] },
+      layout: { hLineWidth: () => 0.4, vLineWidth: () => 0, hLineColor: () => '#CBD5E0' },
+      margin: [0, 2, 0, 6],
     };
   }
 
-  /** Pie de página con fecha e índice */
   private footerFn() {
     return (currentPage: number, pageCount: number) => ({
       columns: [
-        {
-          text: `Generado el ${new Date().toLocaleDateString('es-GT', {
-            year: 'numeric', month: 'long', day: 'numeric',
-          })}`,
-          fontSize: 7,
-          color: COLOR_MUTED,
-          margin: [20, 0],
-        },
-        {
-          text: `Página ${currentPage} de ${pageCount}`,
-          alignment: 'right',
-          fontSize: 7,
-          color: COLOR_MUTED,
-          margin: [0, 0, 20, 0],
-        },
+        { text: `Generado el ${new Date().toLocaleDateString('es-GT', { year: 'numeric', month: 'long', day: 'numeric' })}`, fontSize: 7, color: COLOR_MUTED, margin: [20, 0] },
+        { text: `Página ${currentPage} de ${pageCount}`, alignment: 'right', fontSize: 7, color: COLOR_MUTED, margin: [0, 0, 20, 0] },
       ],
       margin: [0, 4],
     });
@@ -195,34 +152,259 @@ export class ReportesService {
   // CREAR PDF
   // ============================
 
-  private generarPDF(contenido: any[], titulo: string, res: any) {
+  private generarPDF(contenido: any[], titulo: string, res: any, landscape = false) {
     const docDefinition: any = {
       pageSize: 'LETTER',
+      pageOrientation: landscape ? 'landscape' : 'portrait',
       pageMargins: [30, 30, 30, 40],
       content: contenido,
       footer: this.footerFn(),
-      defaultStyle: {
-        font: 'Roboto',
-        fontSize: 10,
-        color: COLOR_TEXT,
-      },
+      defaultStyle: { font: 'Roboto', fontSize: 10, color: COLOR_TEXT },
       styles: {
-        header: { fontSize: 20, bold: true, color: COLOR_WHITE },
-        subheader: { fontSize: 13, bold: true, color: COLOR_PRIMARY, margin: [0, 8, 0, 4] },
-        label: { fontSize: 9, bold: true, color: COLOR_MUTED },
-        value: { fontSize: 9, color: COLOR_TEXT },
-        monto: { fontSize: 9, bold: true, color: COLOR_SUCCESS, alignment: 'right' },
+        header:    { fontSize: 20, bold: true, color: COLOR_WHITE },
+        subheader: { fontSize: 12, bold: true, color: COLOR_PRIMARY, margin: [0, 6, 0, 3] },
+        label:     { fontSize: 8, bold: true, color: COLOR_MUTED },
+        value:     { fontSize: 8, color: COLOR_TEXT },
+        monto:     { fontSize: 8, bold: true, color: COLOR_SUCCESS, alignment: 'right' },
       },
     };
-
     const printer = new PdfPrinter(this.fonts);
-    const pdfDoc = printer.createPdfKitDocument(docDefinition);
-
+    const pdfDoc  = printer.createPdfKitDocument(docDefinition);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename=${titulo}.pdf`);
-
     pdfDoc.pipe(res);
     pdfDoc.end();
+  }
+
+  // ============================
+  // HELPER: tabla SAT con anchos dinámicos
+  // ============================
+
+  private tablaSAT(detalles: any[]): any {
+    const TIPOS_INGRESO   = ['Bonificacion', 'Comision'];
+    const TIPOS_DEDUCCION = ['Deduccion', 'Descuento'];
+
+    const mapaConceptos = new Map<number, { nombre: string; tipo: string }>();
+    for (const d of detalles) {
+      for (const c of d.conceptos ?? []) {
+        if (c.eliminado) continue;
+        if (!mapaConceptos.has(c.concepto.id_concepto))
+          mapaConceptos.set(c.concepto.id_concepto, { nombre: c.concepto.nombre, tipo: c.concepto.tipo });
+      }
+    }
+
+    const conceptosIngreso   = [...mapaConceptos.entries()].filter(([, v]) => TIPOS_INGRESO.includes(v.tipo));
+    const conceptosDeduccion = [...mapaConceptos.entries()].filter(([, v]) => TIPOS_DEDUCCION.includes(v.tipo));
+    const conceptosOtros     = [...mapaConceptos.entries()].filter(([, v]) => !TIPOS_INGRESO.includes(v.tipo) && !TIPOS_DEDUCCION.includes(v.tipo));
+    const todosConceptos     = [...conceptosIngreso, ...conceptosOtros, ...conceptosDeduccion];
+
+    const anchoConcepto = todosConceptos.length <= 4 ? '*' : 'auto';
+    const widths: any[] = ['auto', 'auto', '*', '*', 'auto', ...todosConceptos.map(() => anchoConcepto), 'auto'];
+
+    const hFila1: any[] = [
+      { text: 'No.',             bold: true, fontSize: 7, color: COLOR_WHITE, fillColor: COLOR_PRIMARY, alignment: 'center', margin: [3, 5], rowSpan: 2 },
+      { text: 'NIT',             bold: true, fontSize: 7, color: COLOR_WHITE, fillColor: COLOR_PRIMARY, alignment: 'center', margin: [3, 5], rowSpan: 2 },
+      { text: 'Nombre',          bold: true, fontSize: 7, color: COLOR_WHITE, fillColor: COLOR_PRIMARY, alignment: 'center', margin: [3, 5], rowSpan: 2 },
+      { text: 'Puesto/Servicio', bold: true, fontSize: 7, color: COLOR_WHITE, fillColor: COLOR_PRIMARY, alignment: 'center', margin: [3, 5], rowSpan: 2 },
+      { text: 'Salario\nBase',   bold: true, fontSize: 7, color: COLOR_WHITE, fillColor: COLOR_PRIMARY, alignment: 'center', margin: [3, 5], rowSpan: 2 },
+    ];
+    if (conceptosIngreso.length > 0) {
+      hFila1.push({ text: 'INGRESOS', bold: true, fontSize: 7, color: COLOR_WHITE, fillColor: '#276749', alignment: 'center', margin: [3, 5], colSpan: conceptosIngreso.length });
+      for (let i = 1; i < conceptosIngreso.length; i++) hFila1.push({});
+    }
+    if (conceptosOtros.length > 0) {
+      hFila1.push({ text: 'OTROS', bold: true, fontSize: 7, color: COLOR_WHITE, fillColor: COLOR_SECONDARY, alignment: 'center', margin: [3, 5], colSpan: conceptosOtros.length });
+      for (let i = 1; i < conceptosOtros.length; i++) hFila1.push({});
+    }
+    if (conceptosDeduccion.length > 0) {
+      hFila1.push({ text: 'DEDUCCIONES', bold: true, fontSize: 7, color: COLOR_WHITE, fillColor: '#742A2A', alignment: 'center', margin: [3, 5], colSpan: conceptosDeduccion.length });
+      for (let i = 1; i < conceptosDeduccion.length; i++) hFila1.push({});
+    }
+    hFila1.push({ text: 'Salario\nDevengado', bold: true, fontSize: 7, color: COLOR_WHITE, fillColor: COLOR_PRIMARY, alignment: 'center', margin: [3, 5], rowSpan: 2 });
+
+    const hFila2: any[] = [{}, {}, {}, {}, {}];
+    for (const [, c] of conceptosIngreso)   hFila2.push({ text: c.nombre, bold: true, fontSize: 6, color: COLOR_WHITE, fillColor: '#276749',     alignment: 'center', margin: [3, 3] });
+    for (const [, c] of conceptosOtros)     hFila2.push({ text: c.nombre, bold: true, fontSize: 6, color: COLOR_WHITE, fillColor: COLOR_SECONDARY, alignment: 'center', margin: [3, 3] });
+    for (const [, c] of conceptosDeduccion) hFila2.push({ text: c.nombre, bold: true, fontSize: 6, color: COLOR_WHITE, fillColor: '#742A2A',     alignment: 'center', margin: [3, 3] });
+    hFila2.push({});
+
+    const filasDatos = detalles.map((d, idx) => {
+      const mapaMontos = new Map<number, number>();
+      for (const c of d.conceptos ?? []) if (!c.eliminado) mapaMontos.set(c.concepto.id_concepto, Number(c.monto));
+      const bg = idx % 2 === 0 ? COLOR_WHITE : COLOR_ACCENT;
+      const fila: any[] = [
+        { text: String(idx + 1),                                                 fontSize: 7, color: COLOR_TEXT, alignment: 'center', fillColor: bg, margin: [3, 4] },
+        { text: d.empleado.dpi ?? '—',                                           fontSize: 7, color: COLOR_TEXT, fillColor: bg, margin: [3, 4] },
+        { text: `${d.empleado.nombre_empleado} ${d.empleado.apellido_empleado}`, fontSize: 7, color: COLOR_TEXT, fillColor: bg, margin: [3, 4] },
+        { text: d.empleado.puesto?.nombre_puesto ?? '—',                         fontSize: 7, color: COLOR_TEXT, fillColor: bg, margin: [3, 4] },
+        { text: `Q${Number(d.salario_base).toFixed(2)}`,                         fontSize: 7, color: COLOR_TEXT, alignment: 'right', fillColor: bg, margin: [3, 4] },
+      ];
+      for (const [id] of conceptosIngreso)   fila.push({ text: mapaMontos.has(id) ? `Q${mapaMontos.get(id)!.toFixed(2)}` : '0.00', fontSize: 7, color: COLOR_TEXT, alignment: 'right', fillColor: idx % 2 === 0 ? '#F0FFF4' : '#E6FFF0', margin: [3, 4] });
+      for (const [id] of conceptosOtros)     fila.push({ text: mapaMontos.has(id) ? `Q${mapaMontos.get(id)!.toFixed(2)}` : '0.00', fontSize: 7, color: COLOR_TEXT, alignment: 'right', fillColor: bg, margin: [3, 4] });
+      for (const [id] of conceptosDeduccion) fila.push({ text: mapaMontos.has(id) ? `Q${mapaMontos.get(id)!.toFixed(2)}` : '0.00', fontSize: 7, color: COLOR_TEXT, alignment: 'right', fillColor: idx % 2 === 0 ? '#FFF5F5' : '#FFF0F0', margin: [3, 4] });
+      fila.push({ text: `Q${Number(d.total_liquido ?? 0).toFixed(2)}`, fontSize: 7, bold: true, color: COLOR_TEXT, alignment: 'right', fillColor: bg, margin: [3, 4] });
+      return fila;
+    });
+
+    const totalGeneral = detalles.reduce((acc, d) => acc + Number(d.total_liquido ?? 0), 0);
+    const filaTotales: any[] = [
+      { text: 'TOTALES', bold: true, fontSize: 7, color: COLOR_WHITE, fillColor: COLOR_PRIMARY, colSpan: 5, alignment: 'right', margin: [4, 5] },
+      {}, {}, {}, {},
+    ];
+    for (const [id, c] of todosConceptos) {
+      const total = detalles.reduce((acc, d) => {
+        const found = (d.conceptos ?? []).find((x: any) => !x.eliminado && x.concepto.id_concepto === id);
+        return acc + (found ? Number(found.monto) : 0);
+      }, 0);
+      filaTotales.push({ text: `Q${total.toFixed(2)}`, bold: true, fontSize: 7, alignment: 'right', margin: [3, 5], color: COLOR_TEXT, fillColor: ['Deduccion','Descuento'].includes(c.tipo) ? COLOR_DEDUCCION_BG : ['Bonificacion','Comision'].includes(c.tipo) ? COLOR_INGRESO_BG : COLOR_ACCENT });
+    }
+    filaTotales.push({ text: `Q${totalGeneral.toFixed(2)}`, bold: true, fontSize: 7, color: COLOR_WHITE, fillColor: COLOR_PRIMARY, alignment: 'right', margin: [3, 5] });
+
+    return {
+      table: { headerRows: 2, widths, body: [hFila1, hFila2, ...filasDatos, filaTotales] },
+      layout: { hLineWidth: (i: number) => (i === 0 || i === 2) ? 0 : 0.4, vLineWidth: () => 0.3, hLineColor: () => '#CBD5E0', vLineColor: () => '#CBD5E0' },
+      margin: [0, 4, 0, 12],
+    };
+  }
+
+  // ============================
+  // HELPER: baucher estilo documento formal
+  // ============================
+
+  private filaInfoBoleta(clave: string, valor: string): any {
+    return {
+      columns: [
+        { text: `${clave}:`, bold: true, fontSize: 8, color: COLOR_TEXT, width: 90 },
+        { text: valor || '—', fontSize: 8, color: COLOR_TEXT },
+      ],
+      margin: [0, 1, 0, 1],
+    };
+  }
+
+  private baucherPago(detalle: any, nomina: any): any[] {
+    const emp = detalle.empleado;
+    const TIPOS_INGRESO   = ['Bonificacion', 'Comision'];
+    const TIPOS_DEDUCCION = ['Deduccion', 'Descuento'];
+
+    const conceptosActivos = (detalle.conceptos ?? []).filter((c: any) => c.eliminado !== true);
+    const ingresos    = conceptosActivos.filter((c: any) => TIPOS_INGRESO.includes(c.concepto.tipo));
+    const deducciones = conceptosActivos.filter((c: any) => TIPOS_DEDUCCION.includes(c.concepto.tipo));
+
+    const totalIngresos    = ingresos.reduce((a: number, c: any) => a + Number(c.monto), 0);
+    const totalDeducciones = deducciones.reduce((a: number, c: any) => a + Number(c.monto), 0);
+    const totalLiquido     = Number(detalle.total_liquido ?? 0);
+
+    const [anio, mes]  = nomina.periodo.split('-');
+    const diasMes      = new Date(Number(anio), Number(mes), 0).getDate();
+    const periodoTexto = `${anio}-${mes}-01 al ${anio}-${mes}-${String(diasMes).padStart(2, '0')}`;
+    const obsTexto     = nomina.tipo === 'Quincenal' ? 'BOLETA QUINCENAL' : 'BOLETA MENSUAL';
+
+    const filasIng: { desc: string; monto: number | null }[] = [
+      ...ingresos.map((c: any) => ({ desc: c.concepto.nombre.toUpperCase(), monto: Number(c.monto) })),
+      { desc: 'SALARIO ORDINARIO', monto: Number(detalle.salario_base) },
+    ];
+    const filesDed: { desc: string; monto: number | null }[] = [
+      ...deducciones.map((c: any) => ({ desc: c.concepto.nombre.toUpperCase(), monto: Number(c.monto) })),
+    ];
+    const maxFilas = Math.max(filasIng.length, filesDed.length);
+    while (filasIng.length < maxFilas) filasIng.push({ desc: '', monto: null });
+    while (filesDed.length < maxFilas) filesDed.push({ desc: '', monto: null });
+
+    const bodyTabla = filasIng.map((fi, i) => {
+      const fd = filesDed[i];
+      return [
+        { text: fi.desc, fontSize: 8, color: COLOR_TEXT, margin: [4, 4] },
+        { text: fi.monto != null ? `Q${fi.monto.toFixed(2)}` : '', fontSize: 8, color: COLOR_TEXT, alignment: 'right', margin: [4, 4] },
+        { text: fd.desc, fontSize: 8, color: COLOR_TEXT, margin: [4, 4] },
+        { text: fd.monto != null ? `Q${fd.monto.toFixed(2)}` : '', fontSize: 8, color: COLOR_TEXT, alignment: 'right', margin: [4, 4] },
+      ];
+    });
+
+    return [
+      { text: 'RECIBO DE PAGO MENSUAL', fontSize: 13, bold: true, alignment: 'center', color: COLOR_TEXT, margin: [0, 0, 0, 2] },
+      {
+        table: {
+          widths: ['*'],
+          body: [[{
+            stack: [
+              { text: 'DATOS DEL EMPLEADO', bold: true, fontSize: 9, alignment: 'center', color: COLOR_TEXT, margin: [0, 0, 0, 6] },
+              {
+                columns: [
+                  {
+                    stack: [
+                      this.filaInfoBoleta('Código',  String(emp.id_empleado)),
+                      this.filaInfoBoleta('Nombre',  `${emp.nombre_empleado} ${emp.apellido_empleado}`),
+                      this.filaInfoBoleta('Nit',     emp.dpi ?? '—'),
+                      this.filaInfoBoleta('Puesto',  emp.puesto?.nombre_puesto ?? '—'),
+                    ],
+                    width: '50%',
+                  },
+                  {
+                    stack: [
+                      this.filaInfoBoleta('División', emp.departamento?.nombre_departamento ?? '—'),
+                      { text: ' ', margin: [0, 3] },
+                      { text: `Período de pago: ${periodoTexto}`, fontSize: 8, color: COLOR_TEXT },
+                      { text: `Observaciones: ${obsTexto}`, fontSize: 8, color: COLOR_TEXT, margin: [0, 3, 0, 0] },
+                    ],
+                    width: '50%',
+                  },
+                ],
+              },
+            ],
+            margin: [8, 8, 8, 8],
+          }]],
+        },
+        layout: { hLineWidth: () => 0.5, vLineWidth: () => 0.5, hLineColor: () => '#A0AEC0', vLineColor: () => '#A0AEC0' },
+        margin: [0, 0, 0, 8],
+      },
+      {
+        table: {
+          widths: ['*', 80, '*', 80],
+          body: [
+            [
+              { text: 'INGRESOS',   bold: true, fontSize: 8, color: COLOR_WHITE, fillColor: COLOR_PRIMARY, colSpan: 2, alignment: 'center', margin: [4, 5] }, {},
+              { text: 'DESCUENTOS', bold: true, fontSize: 8, color: COLOR_WHITE, fillColor: COLOR_PRIMARY, colSpan: 2, alignment: 'center', margin: [4, 5] }, {},
+            ],
+            [
+              { text: 'Descripción', bold: true, fontSize: 8, color: COLOR_WHITE, fillColor: COLOR_PRIMARY, margin: [4, 3] },
+              { text: 'Monto',       bold: true, fontSize: 8, color: COLOR_WHITE, fillColor: COLOR_PRIMARY, alignment: 'right', margin: [4, 3] },
+              { text: 'Descripción', bold: true, fontSize: 8, color: COLOR_WHITE, fillColor: COLOR_PRIMARY, margin: [4, 3] },
+              { text: 'Monto',       bold: true, fontSize: 8, color: COLOR_WHITE, fillColor: COLOR_PRIMARY, alignment: 'right', margin: [4, 3] },
+            ],
+            ...bodyTabla,
+          ],
+        },
+        layout: { hLineWidth: () => 0.4, vLineWidth: () => 0.4, hLineColor: () => '#A0AEC0', vLineColor: () => '#A0AEC0' },
+        margin: [0, 0, 0, 0],
+      },
+      {
+        table: {
+          widths: ['*', '*'],
+          body: [[
+            { text: `Total de Ingresos: Q${(Number(detalle.salario_base) + totalIngresos).toFixed(2)}`, fontSize: 8, bold: true, color: COLOR_TEXT, margin: [4, 5] },
+            { text: `Total de Descuentos: Q${totalDeducciones.toFixed(2)}`, fontSize: 8, bold: true, color: COLOR_TEXT, alignment: 'right', margin: [4, 5] },
+          ]],
+        },
+        layout: { hLineWidth: () => 0.4, vLineWidth: () => 0, hLineColor: () => '#A0AEC0' },
+        margin: [0, 0, 0, 8],
+      },
+      { text: `LIQUIDO A RECIBIR: Q${totalLiquido.toFixed(2)}`, fontSize: 10, bold: true, color: COLOR_TEXT, margin: [0, 0, 0, 24] },
+      {
+        columns: [{
+          stack: [
+            { text: 'RECIBI CONFORME: (F):', fontSize: 8, color: COLOR_TEXT, margin: [0, 0, 0, 18] },
+            { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 160, y2: 0, lineWidth: 0.5, lineColor: COLOR_TEXT }] },
+            { text: `${emp.nombre_empleado} ${emp.apellido_empleado}`, fontSize: 8, color: COLOR_TEXT, alignment: 'center', width: 160, margin: [0, 2, 0, 0] },
+          ],
+          width: 200,
+        }],
+        margin: [0, 0, 0, 0],
+      },
+      {
+        canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 0.5, lineColor: '#A0AEC0', dash: { length: 4, space: 4 } }],
+        margin: [0, 20, 0, 0],
+      },
+    ];
   }
 
   // ============================
@@ -236,102 +418,27 @@ export class ReportesService {
         detalles: {
           where: { eliminado: { not: true } },
           include: {
-            empleado: true,
-            conceptos: {
-              where: { eliminado: { not: true } },
-              include: { concepto: true },
-            },
+            empleado: { include: { puesto: true, departamento: true } },
+            conceptos: { where: { eliminado: { not: true } }, include: { concepto: true } },
           },
         },
       },
     });
 
     const contenido: any[] = [
-      ...this.headerBlock(
-        'REPORTE GENERAL DE NÓMINAS',
-        `Total de nóminas: ${nominas.length}`,
-      ),
+      ...this.headerBlock('REPORTE GENERAL DE NÓMINAS', `Total de nóminas: ${nominas.length}`),
     ];
 
     for (const nomina of nominas) {
-      contenido.push(
-        this.seccionBlock(`Nómina #${nomina.id_nomina}  ·  ${nomina.periodo}`),
-      );
-
-      contenido.push({
-        columns: [
-          {
-            stack: [
-              this.filaInfo('Periodo', nomina.periodo),
-              this.filaInfo('Tipo', nomina.tipo),
-              this.filaInfo(
-                'Fecha de creación',
-                new Date(nomina.fecha_creacion).toLocaleDateString('es-GT'),
-              ),
-            ],
-            width: '60%',
-          },
-          {
-            stack: [
-              { text: 'Estado', style: 'label', margin: [0, 2, 0, 4] },
-              this.badgeEstado(nomina.estado),
-            ],
-            width: '40%',
-            alignment: 'right',
-          },
-        ],
-        margin: [0, 0, 0, 8],
-      });
-
+      contenido.push(this.seccionBlock(`Nómina #${nomina.id_nomina}  ·  ${nomina.periodo}  ·  Tipo: ${nomina.tipo}  ·  Estado: ${nomina.estado}`));
       if (nomina.detalles.length === 0) {
-        contenido.push({
-          text: 'Esta nómina no tiene detalles registrados.',
-          italics: true,
-          color: COLOR_MUTED,
-          fontSize: 9,
-          margin: [0, 0, 0, 10],
-        });
+        contenido.push({ text: 'Esta nómina no tiene detalles registrados.', italics: true, color: COLOR_MUTED, fontSize: 8, margin: [0, 0, 0, 8] });
         continue;
       }
-
-      const filasEmpleados: any[][] = [
-        ['Empleado', 'Salario Base', 'H. Trabajadas', 'H. Extra', 'Total Líquido'],
-        ...nomina.detalles.map((d) => [
-          `${d.empleado.nombre_empleado} ${d.empleado.apellido_empleado}`,
-          `Q${Number(d.salario_base).toFixed(2)}`,
-          String(d.horas_trabajadas),
-          String(d.horas_extra),
-          `Q${Number(d.total_liquido ?? 0).toFixed(2)}`,
-        ]),
-      ];
-
-      contenido.push(this.tablaConceptos(filasEmpleados));
-
-      for (const detalle of nomina.detalles) {
-        if (detalle.conceptos.length === 0) continue;
-
-        contenido.push({
-          text: `Conceptos — ${detalle.empleado.nombre_empleado} ${detalle.empleado.apellido_empleado}`,
-          fontSize: 9,
-          bold: true,
-          color: COLOR_SECONDARY,
-          margin: [0, 6, 0, 2],
-        });
-
-        const filasConceptos: any[][] = [
-          ['Concepto', 'Tipo', 'Monto'],
-          ...detalle.conceptos.map((c) => [
-            c.concepto.nombre,
-            c.concepto.tipo,
-            `Q${Number(c.monto).toFixed(2)}`,
-          ]),
-        ];
-
-        contenido.push(this.tablaConceptos(filasConceptos));
-      }
+      contenido.push(this.tablaSAT(nomina.detalles));
     }
 
-    return this.generarPDF(contenido, 'nominas', res);
+    return this.generarPDF(contenido, 'nominas', res, true);
   }
 
   // ============================
@@ -345,42 +452,28 @@ export class ReportesService {
         detalles: {
           where: { eliminado: { not: true } },
           include: {
-            empleado: true,
-            conceptos: {
-              where: { eliminado: { not: true } },
-              include: { concepto: true },
-            },
+            empleado: { include: { puesto: true, departamento: true } },
+            conceptos: { where: { eliminado: { not: true } }, include: { concepto: true } },
           },
         },
       },
     });
 
-    if (!nomina) {
-      throw new NotFoundException(`La nómina con ID ${id} no existe`);
-    }
+    if (!nomina) throw new NotFoundException(`La nómina con ID ${id} no existe`);
 
-    const totalLiquido = nomina.detalles.reduce(
-      (acc, d) => acc + Number(d.total_liquido ?? 0),
-      0,
-    );
+    const totalLiquido = nomina.detalles.reduce((acc, d) => acc + Number(d.total_liquido ?? 0), 0);
 
     const contenido: any[] = [
-      ...this.headerBlock(
-        `NÓMINA #${nomina.id_nomina}`,
-        `Periodo: ${nomina.periodo}  ·  Tipo: ${nomina.tipo}`,
-      ),
+      ...this.headerBlock(`NÓMINA #${nomina.id_nomina}`, `Periodo: ${nomina.periodo}  ·  Tipo: ${nomina.tipo}`),
     ];
 
     contenido.push({
       columns: [
         {
           stack: [
-            this.filaInfo('Periodo', nomina.periodo),
-            this.filaInfo('Tipo', nomina.tipo),
-            this.filaInfo(
-              'Fecha',
-              new Date(nomina.fecha_creacion).toLocaleDateString('es-GT'),
-            ),
+            this.filaInfo('Periodo',   nomina.periodo),
+            this.filaInfo('Tipo',      nomina.tipo),
+            this.filaInfo('Fecha',     new Date(nomina.fecha_creacion).toLocaleDateString('es-GT')),
             this.filaInfo('Empleados', String(nomina.detalles.length)),
           ],
           width: '60%',
@@ -389,92 +482,33 @@ export class ReportesService {
           stack: [
             { text: 'Estado', style: 'label', margin: [0, 2, 0, 4] },
             this.badgeEstado(nomina.estado),
-            { text: ' ', margin: [0, 6] },
+            { text: ' ', margin: [0, 4] },
             { text: 'Total General', style: 'label', margin: [0, 2, 0, 2] },
-            {
-              text: `Q${totalLiquido.toFixed(2)}`,
-              fontSize: 16,
-              bold: true,
-              color: COLOR_PRIMARY,
-              alignment: 'right',
-            },
+            { text: `Q${totalLiquido.toFixed(2)}`, fontSize: 16, bold: true, color: COLOR_PRIMARY, alignment: 'right' },
           ],
           width: '40%',
           alignment: 'right',
         },
       ],
-      margin: [0, 0, 0, 12],
+      margin: [0, 0, 0, 10],
     });
 
-    for (const detalle of nomina.detalles) {
-      contenido.push(
-        this.seccionBlock(
-          `${detalle.empleado.nombre_empleado} ${detalle.empleado.apellido_empleado}`,
-        ),
-      );
-
-      contenido.push({
-        columns: [
-          {
-            stack: [
-              this.filaInfo('Salario Base', `Q${Number(detalle.salario_base).toFixed(2)}`),
-              this.filaInfo('Horas Trabajadas', String(detalle.horas_trabajadas)),
-              this.filaInfo('Horas Extra', String(detalle.horas_extra)),
-              this.filaInfo(
-                'Pago Horas Normales',
-                detalle.pago_horas_normales != null
-                  ? `Q${Number(detalle.pago_horas_normales).toFixed(2)}`
-                  : '—',
-              ),
-              this.filaInfo(
-                'Pago Horas Extra',
-                detalle.pago_horas_extra != null
-                  ? `Q${Number(detalle.pago_horas_extra).toFixed(2)}`
-                  : '—',
-              ),
-            ],
-          },
-          {
-            stack: [
-              { text: 'Total Líquido', style: 'label', margin: [0, 2, 0, 4] },
-              {
-                text: `Q${Number(detalle.total_liquido ?? 0).toFixed(2)}`,
-                fontSize: 18,
-                bold: true,
-                color: COLOR_SUCCESS,
-                alignment: 'right',
-              },
-            ],
-            alignment: 'right',
-          },
-        ],
-        margin: [0, 4, 0, 8],
-      });
-
-      if (detalle.conceptos.length > 0) {
-        contenido.push({ text: 'Conceptos aplicados', style: 'label', margin: [0, 0, 0, 4] });
-
-        const filasConceptos: any[][] = [
-          ['Concepto', 'Tipo', 'Monto'],
-          ...detalle.conceptos.map((c) => [
-            c.concepto.nombre,
-            c.concepto.tipo,
-            `Q${Number(c.monto).toFixed(2)}`,
-          ]),
-        ];
-
-        contenido.push(this.tablaConceptos(filasConceptos));
-      }
+    if (nomina.detalles.length === 0) {
+      contenido.push({ text: 'Esta nómina no tiene detalles registrados.', italics: true, color: COLOR_MUTED, fontSize: 8 });
+    } else {
+      contenido.push(this.tablaSAT(nomina.detalles));
     }
 
-    return this.generarPDF(contenido, `nomina_${id}`, res);
+    return this.generarPDF(contenido, `nomina_${id}`, res, true);
   }
 
   // ============================
-  // REPORTE GENERAL EXPEDIENTES
+  // REPORTE GENERAL EXPEDIENTES — diseño compacto
   // ============================
 
   async generarReporteExpedientes(res: any) {
+    await this.validacionService.validarTodos();
+
     const tiposDocumentos = await this.prisma.tipoDocumento.findMany({
       where: { eliminado: { not: true } },
     });
@@ -491,20 +525,18 @@ export class ReportesService {
     });
 
     const contenido: any[] = [
-      ...this.headerBlock(
-        'REPORTE DE EXPEDIENTES',
-        `${empleados.length} empleados registrados`,
-      ),
+      ...this.headerBlock('REPORTE DE EXPEDIENTES', `${empleados.length} empleados registrados`),
     ];
 
-    const filasResumen: any[][] = [
-      ['Empleado', 'DPI', 'Docs. Subidos', 'Docs. Faltantes', 'Estado'],
-      ...empleados.map((emp) => {
+    // Tabla resumen general compacta
+    contenido.push({ text: 'RESUMEN GENERAL', style: 'subheader' });
+    contenido.push(this.tablaConceptos([
+      ['#', 'Empleado', 'DPI', 'Docs. Subidos', 'Docs. Faltantes', 'Estado'],
+      ...empleados.map((emp, i) => {
         const idsSubidos = emp.documentos.map((d) => d.id_tipo);
-        const faltantes = tiposDocumentos.filter(
-          (t) => !idsSubidos.includes(t.id_tipo),
-        );
+        const faltantes  = tiposDocumentos.filter((t) => !idsSubidos.includes(t.id_tipo));
         return [
+          String(i + 1),
           `${emp.nombre_empleado} ${emp.apellido_empleado}`,
           emp.dpi,
           String(emp.documentos.length),
@@ -512,92 +544,102 @@ export class ReportesService {
           emp.validacion?.estado || 'SIN VALIDAR',
         ];
       }),
-    ];
-
-    contenido.push({ text: 'Resumen General', style: 'subheader' });
-    contenido.push(this.tablaConceptos(filasResumen));
+    ]));
 
     contenido.push(this.seccionBlock('DETALLE POR EMPLEADO'));
 
     for (const emp of empleados) {
-      contenido.push({
-        text: `${emp.nombre_empleado} ${emp.apellido_empleado}`,
-        style: 'subheader',
-      });
-
       const idsSubidos = emp.documentos.map((d) => d.id_tipo);
-      const faltantes = tiposDocumentos.filter(
-        (t) => !idsSubidos.includes(t.id_tipo),
-      );
+      const faltantes  = tiposDocumentos.filter((t) => !idsSubidos.includes(t.id_tipo));
 
       contenido.push({
-        columns: [
-          { stack: [this.filaInfo('DPI', emp.dpi)], width: '50%' },
-          {
-            stack: [
-              { text: 'Estado', style: 'label', margin: [0, 2, 0, 4] },
-              this.badgeEstado(emp.validacion?.estado || 'SIN VALIDAR'),
-            ],
-            width: '50%',
-            alignment: 'right',
-          },
-        ],
-        margin: [0, 4, 0, 8],
-      });
-
-      contenido.push({
-        columns: [
-          {
+        table: {
+          widths: ['*'],
+          body: [[{
             stack: [
               {
-                text: `✔  Documentos Subidos (${emp.documentos.length})`,
-                fontSize: 9,
-                bold: true,
-                color: COLOR_SUCCESS,
-                margin: [0, 0, 0, 4],
+                columns: [
+                  {
+                    stack: [
+                      { text: `${emp.nombre_empleado} ${emp.apellido_empleado}`, bold: true, fontSize: 10, color: COLOR_PRIMARY, margin: [0, 0, 0, 3] },
+                      this.filaInfoCompacta('DPI',       emp.dpi),
+                      this.filaInfoCompacta('Correo',    emp.correo),
+                      this.filaInfoCompacta('Teléfono',  emp.telefono),
+                      this.filaInfoCompacta('Dirección', emp.direccion),
+                    ],
+                    width: '65%',
+                  },
+                  {
+                    stack: [
+                      { text: 'Estado', fontSize: 7, bold: true, color: COLOR_MUTED, margin: [0, 0, 0, 2] },
+                      this.badgeEstado(emp.validacion?.estado || 'SIN VALIDAR'),
+                      { text: ' ', margin: [0, 4] },
+                      {
+                        table: {
+                          widths: ['*', '*'],
+                          body: [
+                            [
+                              { text: 'Subidos',   fontSize: 7, bold: true, color: COLOR_MUTED, alignment: 'center' },
+                              { text: 'Faltantes', fontSize: 7, bold: true, color: COLOR_MUTED, alignment: 'center' },
+                            ],
+                            [
+                              { text: String(emp.documentos.length), fontSize: 14, bold: true, color: COLOR_SUCCESS, alignment: 'center' },
+                              { text: String(faltantes.length), fontSize: 14, bold: true, color: faltantes.length > 0 ? COLOR_WARNING : COLOR_MUTED, alignment: 'center' },
+                            ],
+                          ],
+                        },
+                        layout: 'noBorders',
+                      },
+                    ],
+                    width: '35%',
+                    alignment: 'right',
+                  },
+                ],
+                margin: [0, 0, 0, 6],
               },
-              ...emp.documentos.map((doc) => ({
-                text: `· ${doc.tipo.nombre}`,
-                fontSize: 9,
-                color: COLOR_TEXT,
-                margin: [6, 1],
-              })),
-            ],
-            width: '50%',
-          },
-          {
-            stack: [
               {
-                text: `✘  Documentos Faltantes (${faltantes.length})`,
-                fontSize: 9,
-                bold: true,
-                color: faltantes.length === 0 ? COLOR_MUTED : COLOR_WARNING,
-                margin: [0, 0, 0, 4],
+                columns: [
+                  {
+                    stack: [
+                      { text: `✔  Documentos Subidos (${emp.documentos.length})`, fontSize: 8, bold: true, color: COLOR_SUCCESS, margin: [0, 0, 0, 2] },
+                      ...(emp.documentos.length === 0
+                        ? [{ text: 'Sin documentos', fontSize: 7, color: COLOR_MUTED, italics: true, margin: [6, 1] }]
+                        : emp.documentos.map((doc) => ({ text: `· ${doc.tipo.nombre}`, fontSize: 7, color: COLOR_TEXT, margin: [6, 1] }))),
+                    ],
+                    width: '50%',
+                  },
+                  {
+                    stack: [
+                      { text: `✘  Documentos Faltantes (${faltantes.length})`, fontSize: 8, bold: true, color: faltantes.length === 0 ? COLOR_MUTED : COLOR_WARNING, margin: [0, 0, 0, 2] },
+                      ...(faltantes.length === 0
+                        ? [{ text: 'Expediente completo', fontSize: 7, color: COLOR_MUTED, italics: true, margin: [6, 1] }]
+                        : faltantes.map((f) => ({ text: `· ${f.nombre}`, fontSize: 7, color: COLOR_WARNING, margin: [6, 1] }))),
+                    ],
+                    width: '50%',
+                  },
+                ],
               },
-              ...(faltantes.length === 0
-                ? [{ text: 'Expediente completo', fontSize: 9, color: COLOR_MUTED, italics: true, margin: [6, 1] }]
-                : faltantes.map((f) => ({
-                    text: `· ${f.nombre}`,
-                    fontSize: 9,
-                    color: COLOR_WARNING,
-                    margin: [6, 1],
-                  }))),
             ],
-            width: '50%',
-          },
-        ],
-        margin: [0, 0, 0, 12],
+            margin: [8, 8, 8, 8],
+            fillColor: COLOR_WHITE,
+          }]],
+        },
+        layout: {
+          hLineWidth: () => 0.5,
+          vLineWidth: () => 0.5,
+          hLineColor: () => '#CBD5E0',
+          vLineColor: () => '#CBD5E0',
+        },
+        margin: [0, 0, 0, 6],
       });
     }
 
     return this.generarPDF(contenido, 'expedientes', res);
   }
 
-  // ============================
-  // REPORTE EXPEDIENTE EMPLEADO
-  // ============================
-
   async generarReporteExpedienteEmpleado(id: number, res: any) {
+    await this.validacionService.validarEmpleado(id);
+
     const tiposDocumentos = await this.prisma.tipoDocumento.findMany({
       where: { eliminado: { not: true } },
     });
@@ -613,225 +655,173 @@ export class ReportesService {
       },
     });
 
-    if (!emp) {
-      throw new NotFoundException(`El empleado con ID ${id} no existe`);
-    }
+    if (!emp) throw new NotFoundException(`El empleado con ID ${id} no existe`);
 
     const idsSubidos = emp.documentos.map((d) => d.id_tipo);
-    const faltantes = tiposDocumentos.filter(
-      (t) => !idsSubidos.includes(t.id_tipo),
-    );
-
+    const faltantes  = tiposDocumentos.filter((t) => !idsSubidos.includes(t.id_tipo));
     const porcentaje = tiposDocumentos.length > 0
       ? Math.round((emp.documentos.length / tiposDocumentos.length) * 100)
       : 100;
 
     const contenido: any[] = [
-      ...this.headerBlock(
-        'EXPEDIENTE DE EMPLEADO',
-        `${emp.nombre_empleado} ${emp.apellido_empleado}`,
-      ),
+      ...this.headerBlock('EXPEDIENTE DE EMPLEADO', `${emp.nombre_empleado} ${emp.apellido_empleado}`),
     ];
 
     contenido.push({
-      columns: [
-        {
-          stack: [
-            this.filaInfo('DPI', emp.dpi),
-            this.filaInfo('Correo', emp.correo),
-            this.filaInfo('Teléfono', emp.telefono),
-            this.filaInfo('Dirección', emp.direccion),
-          ],
-          width: '60%',
-        },
-        {
-          stack: [
-            { text: 'Estado Expediente', style: 'label', margin: [0, 2, 0, 4] },
-            this.badgeEstado(emp.validacion?.estado || 'SIN VALIDAR'),
-            { text: ' ', margin: [0, 4] },
-            { text: 'Completado', style: 'label', margin: [0, 2, 0, 2] },
-            {
-              text: `${porcentaje}%`,
-              fontSize: 20,
-              bold: true,
-              color: porcentaje === 100 ? COLOR_SUCCESS : COLOR_WARNING,
-              alignment: 'right',
-            },
-          ],
-          width: '40%',
-          alignment: 'right',
-        },
-      ],
-      margin: [0, 0, 0, 16],
-    });
-
-    contenido.push(this.seccionBlock('DOCUMENTOS SUBIDOS'));
-
-    if (emp.documentos.length === 0) {
-      contenido.push({
-        text: 'No se han subido documentos.',
-        italics: true,
-        color: COLOR_MUTED,
-        fontSize: 9,
-        margin: [0, 4, 0, 8],
-      });
-    } else {
-      contenido.push(
-        this.tablaConceptos([
-          ['#', 'Documento', 'Fecha de carga'],
-          ...emp.documentos.map((doc, i) => [
-            String(i + 1),
-            doc.tipo.nombre,
-            new Date(doc.fecha_carga).toLocaleDateString('es-GT'),
-          ]),
-        ]),
-      );
-    }
-
-    contenido.push(this.seccionBlock('DOCUMENTOS FALTANTES'));
-
-    if (faltantes.length === 0) {
-      contenido.push({
-        text: '✔  El expediente está completo. No hay documentos faltantes.',
-        color: COLOR_SUCCESS,
-        bold: true,
-        fontSize: 10,
-        margin: [0, 4, 0, 8],
-      });
-    } else {
-      contenido.push(
-        this.tablaConceptos([
-          ['#', 'Documento', 'Obligatorio'],
-          ...faltantes.map((f, i) => [
-            String(i + 1),
-            f.nombre,
-            f.obligatorio ? 'Sí' : 'No',
-          ]),
-        ]),
-      );
-    }
-
-    return this.generarPDF(contenido, `expediente_${id}`, res);
-  }
-
-  // ============================
-  // HELPER ACADÉMICO: tarjeta de información académica
-  // ============================
-
-  private tarjetaInfoAcademica(acad: any, index: number): any {
-    return {
       table: {
         widths: ['*'],
         body: [[{
           stack: [
+            { text: 'DATOS DEL EMPLEADO', bold: true, fontSize: 9, color: COLOR_PRIMARY, margin: [0, 0, 0, 6] },
             {
               columns: [
                 {
-                  text: String(index + 1),
-                  fontSize: 20,
-                  bold: true,
-                  color: COLOR_SECONDARY,
-                  width: 24,
-                  margin: [0, 2, 8, 0],
+                  stack: [
+                    this.filaInfoCompacta('DPI',       emp.dpi),
+                    this.filaInfoCompacta('Correo',    emp.correo),
+                    this.filaInfoCompacta('Teléfono',  emp.telefono),
+                    this.filaInfoCompacta('Dirección', emp.direccion),
+                  ],
+                  width: '65%',
                 },
                 {
                   stack: [
-                    { text: acad.titulo, bold: true, fontSize: 11, color: COLOR_PRIMARY, margin: [0, 0, 0, 4] },
-                    this.filaInfo('Institución', acad.institucion),
-                    this.filaInfo('Certificación', acad.certificacion),
-                    this.filaInfo(
-                      'Fecha de graduación',
-                      new Date(acad.fecha_graduacion).toLocaleDateString('es-GT'),
-                    ),
+                    { text: 'Estado Expediente', fontSize: 7, bold: true, color: COLOR_MUTED, margin: [0, 0, 0, 2] },
+                    this.badgeEstado(emp.validacion?.estado || 'SIN VALIDAR'),
+                    { text: ' ', margin: [0, 4] },
+                    { text: 'Completado', fontSize: 7, bold: true, color: COLOR_MUTED, margin: [0, 0, 0, 2] },
+                    { text: `${porcentaje}%`, fontSize: 18, bold: true, color: porcentaje === 100 ? COLOR_SUCCESS : COLOR_WARNING, alignment: 'right' },
                   ],
+                  width: '35%',
+                  alignment: 'right',
                 },
               ],
             },
           ],
           margin: [8, 8, 8, 8],
-          fillColor: COLOR_ACCENT,
         }]],
       },
-      layout: {
-        hLineWidth: () => 0,
-        vLineWidth: () => 0,
-      },
-      margin: [0, 0, 0, 6],
-    };
+      layout: { hLineWidth: () => 0.5, vLineWidth: () => 0.5, hLineColor: () => '#CBD5E0', vLineColor: () => '#CBD5E0' },
+      margin: [0, 0, 0, 8],
+    });
+
+    contenido.push({
+      columns: [
+        {
+          stack: [
+            this.seccionBlockSub(`✔  Documentos Subidos (${emp.documentos.length})`),
+            ...(emp.documentos.length === 0
+              ? [{ text: 'No se han subido documentos.', italics: true, color: COLOR_MUTED, fontSize: 8, margin: [4, 4] }]
+              : [this.tablaConceptos([
+                  ['#', 'Documento', 'Fecha de carga'],
+                  ...emp.documentos.map((doc, i) => [
+                    String(i + 1),
+                    doc.tipo.nombre,
+                    new Date(doc.fecha_carga).toLocaleDateString('es-GT'),
+                  ]),
+                ])]),
+          ],
+          width: '50%',
+          margin: [0, 0, 4, 0],
+        },
+        {
+          stack: [
+            this.seccionBlockSub(`✘  Documentos Faltantes (${faltantes.length})`),
+            ...(faltantes.length === 0
+              ? [{ text: '✔  Expediente completo.', color: COLOR_SUCCESS, bold: true, fontSize: 8, margin: [4, 6] }]
+              : [this.tablaConceptos([
+                  ['#', 'Documento', 'Obligatorio'],
+                  ...faltantes.map((f, i) => [String(i + 1), f.nombre, f.obligatorio ? 'Sí' : 'No']),
+                ])]),
+          ],
+          width: '50%',
+          margin: [4, 0, 0, 0],
+        },
+      ],
+    });
+
+    return this.generarPDF(contenido, `expediente_${id}`, res);
   }
 
   // ============================
-  // HELPER ACADÉMICO: sección global de documentos del empleado
+  // HELPER ACADÉMICO
   // ============================
 
-  private seccionDocumentosAcademicos(
-    todosLosDocumentos: any[],
-    tiposDoc: any[],
-  ): any[] {
+  private tarjetaInfoAcademica(acad: any, index: number): any {
+    return {
+      table: {
+        widths: ['auto', '*', '*'],
+        body: [[
+          { text: String(index + 1), fontSize: 14, bold: true, color: COLOR_PRIMARY, alignment: 'center', margin: [4, 6, 8, 6] },
+          {
+            stack: [
+              { text: acad.titulo, bold: true, fontSize: 9, color: COLOR_PRIMARY, margin: [0, 0, 0, 2] },
+              this.filaInfoCompacta('Institución',   acad.institucion, 80),
+              this.filaInfoCompacta('Certificación', acad.certificacion, 80),
+            ],
+            margin: [0, 4, 4, 4],
+          },
+          {
+            stack: [
+              this.filaInfoCompacta('Graduación', new Date(acad.fecha_graduacion).toLocaleDateString('es-GT'), 80),
+            ],
+            margin: [4, 4, 4, 4],
+          },
+        ]],
+      },
+      layout: {
+        hLineWidth: () => 0.4,
+        vLineWidth: (i: number) => i === 1 ? 0.4 : 0,
+        hLineColor: () => '#CBD5E0',
+        vLineColor: () => '#CBD5E0',
+        fillColor: (rowIndex: number, node: any, columnIndex: number) => columnIndex === 0 ? COLOR_ACCENT : COLOR_WHITE,
+      },
+      margin: [0, 0, 0, 3],
+    };
+  }
 
-    const idsSubidos = [...new Set(todosLosDocumentos.map((d: any) => d.id_tipo_doc_academico))];
-    const faltantes = tiposDoc.filter((t) => !idsSubidos.includes(t.id_tipo_doc_academico));
-
-    const subidosUnicos = idsSubidos.map((id) => {
-      const doc = todosLosDocumentos.find((d: any) => d.id_tipo_doc_academico === id);
-      return doc;
-    }).filter(Boolean);
+  private seccionDocumentosAcademicos(todosLosDocumentos: any[], tiposDoc: any[]): any[] {
+    const idsSubidos    = [...new Set(todosLosDocumentos.map((d: any) => d.id_tipo_doc_academico))];
+    const faltantes     = tiposDoc.filter((t) => !idsSubidos.includes(t.id_tipo_doc_academico));
+    const subidosUnicos = idsSubidos.map((id) => todosLosDocumentos.find((d: any) => d.id_tipo_doc_academico === id)).filter(Boolean);
 
     return [
-      this.seccionBlock('DOCUMENTOS ACADÉMICOS'),
       {
         columns: [
           {
             stack: [
-              {
-                text: `✔  Subidos (${subidosUnicos.length} / ${tiposDoc.length})`,
-                fontSize: 9,
-                bold: true,
-                color: COLOR_SUCCESS,
-                margin: [0, 0, 0, 4],
-              },
+              this.seccionBlockSub(`✔  Docs. Académicos Subidos (${subidosUnicos.length} / ${tiposDoc.length})`),
               ...(subidosUnicos.length === 0
-                ? [{ text: 'Sin documentos subidos', fontSize: 9, color: COLOR_MUTED, italics: true }]
-                : subidosUnicos.map((doc: any) => ({
-                    text: `· ${doc.tipo_doc.nombre}`,
-                    fontSize: 9,
-                    color: COLOR_TEXT,
-                    margin: [4, 2],
-                  }))),
+                ? [{ text: 'Sin documentos subidos', fontSize: 7, color: COLOR_MUTED, italics: true, margin: [4, 4] }]
+                : [this.tablaConceptos([
+                    ['#', 'Documento'],
+                    ...subidosUnicos.map((doc: any, i: number) => [String(i + 1), doc.tipo_doc.nombre]),
+                  ])]),
             ],
             width: '50%',
+            margin: [0, 0, 4, 0],
           },
           {
             stack: [
-              {
-                text: `✘  Faltantes (${faltantes.length})`,
-                fontSize: 9,
-                bold: true,
-                color: faltantes.length === 0 ? COLOR_MUTED : COLOR_WARNING,
-                margin: [0, 0, 0, 4],
-              },
+              this.seccionBlockSub(`✘  Docs. Académicos Faltantes (${faltantes.length})`),
               ...(faltantes.length === 0
-                ? [{ text: 'Expediente académico completo', fontSize: 9, color: COLOR_MUTED, italics: true }]
-                : faltantes.map((f: any) => ({
-                    text: `· ${f.nombre}${f.obligatorio ? ' *' : ''}`,
-                    fontSize: 9,
-                    color: COLOR_WARNING,
-                    margin: [4, 2],
-                  }))),
-              ...(faltantes.some((f: any) => f.obligatorio)
-                ? [{ text: '* obligatorio', fontSize: 7, color: COLOR_MUTED, italics: true, margin: [4, 4, 0, 0] }]
-                : []),
+                ? [{ text: 'Expediente académico completo', fontSize: 7, color: COLOR_MUTED, italics: true, margin: [4, 4] }]
+                : [this.tablaConceptos([
+                    ['#', 'Documento', 'Obligatorio'],
+                    ...faltantes.map((f: any, i: number) => [String(i + 1), f.nombre, f.obligatorio ? 'Sí' : 'No']),
+                  ])]),
             ],
             width: '50%',
+            margin: [4, 0, 0, 0],
           },
         ],
-        margin: [0, 4, 0, 12],
+        margin: [0, 4, 0, 8],
       },
     ];
   }
 
   // ============================
-  // REPORTE GENERAL ACADÉMICO
+  // REPORTE GENERAL ACADÉMICO — diseño compacto
   // ============================
 
   async generarReporteAcademicos(res: any) {
@@ -858,36 +848,58 @@ export class ReportesService {
       ...this.headerBlock('REPORTE DE INFORMACIÓN ACADÉMICA', `${empleados.length} empleados`),
     ];
 
-    const filasResumen: any[][] = [
-      ['Empleado', 'Inf. Académica', 'Docs. Subidos', 'Docs. Faltantes'],
-      ...empleados.map((emp) => {
+    // Resumen general compacto
+    contenido.push({ text: 'RESUMEN GENERAL', style: 'subheader' });
+    contenido.push(this.tablaConceptos([
+      ['#', 'Empleado', 'Inf. Académica', 'Docs. Subidos', 'Docs. Faltantes'],
+      ...empleados.map((emp, i) => {
         const todosLosDocs = emp.academicos.flatMap((a) => a.documentos);
-        const idsSubidos = [...new Set(todosLosDocs.map((d) => d.id_tipo_doc_academico))];
-        const faltantes = tiposDoc.filter((t) => !idsSubidos.includes(t.id_tipo_doc_academico));
+        const idsSubidos   = [...new Set(todosLosDocs.map((d) => d.id_tipo_doc_academico))];
+        const faltantes    = tiposDoc.filter((t) => !idsSubidos.includes(t.id_tipo_doc_academico));
         return [
+          String(i + 1),
           `${emp.nombre_empleado} ${emp.apellido_empleado}`,
           String(emp.academicos.length),
           String(idsSubidos.length),
           String(faltantes.length),
         ];
       }),
-    ];
+    ]));
 
-    contenido.push({ text: 'Resumen General', style: 'subheader' });
-    contenido.push(this.tablaConceptos(filasResumen));
+    contenido.push(this.seccionBlock('DETALLE POR EMPLEADO'));
 
     for (const emp of empleados) {
       if (emp.academicos.length === 0) continue;
 
-      contenido.push(
-        this.seccionBlock(`${emp.nombre_empleado} ${emp.apellido_empleado}`),
-      );
+      const todosLosDocs = emp.academicos.flatMap((a) => a.documentos);
 
+      // Encabezado del empleado compacto
+      contenido.push({
+        table: {
+          widths: ['*'],
+          body: [[{
+            columns: [
+              { text: `${emp.nombre_empleado} ${emp.apellido_empleado}`, bold: true, fontSize: 10, color: COLOR_PRIMARY },
+              { text: `${emp.academicos.length} registro(s) académico(s)`, fontSize: 8, color: COLOR_MUTED, alignment: 'right', italics: true },
+            ],
+            margin: [8, 6, 8, 6],
+          }]],
+        },
+        layout: {
+          hLineWidth: () => 0.5,
+          vLineWidth: () => 0,
+          hLineColor: () => '#CBD5E0',
+          fillColor: () => COLOR_ACCENT,
+        },
+        margin: [0, 4, 0, 3],
+      });
+
+      // Tarjetas académicas compactas
       for (let i = 0; i < emp.academicos.length; i++) {
         contenido.push(this.tarjetaInfoAcademica(emp.academicos[i], i));
       }
 
-      const todosLosDocs = emp.academicos.flatMap((a) => a.documentos);
+      // Documentos en dos columnas
       contenido.push(...this.seccionDocumentosAcademicos(todosLosDocs, tiposDoc));
     }
 
@@ -895,7 +907,7 @@ export class ReportesService {
   }
 
   // ============================
-  // REPORTE ACADÉMICO EMPLEADO
+  // REPORTE ACADÉMICO EMPLEADO — diseño compacto
   // ============================
 
   async generarReporteAcademicoEmpleado(id: number, res: any) {
@@ -918,62 +930,60 @@ export class ReportesService {
       },
     });
 
-    if (!emp) {
-      throw new NotFoundException(`El empleado con ID ${id} no existe`);
-    }
+    if (!emp) throw new NotFoundException(`El empleado con ID ${id} no existe`);
 
     const todosLosDocsEmp = emp.academicos.flatMap((a) => a.documentos);
-    const idsSubidosEmp = [...new Set(todosLosDocsEmp.map((d) => d.id_tipo_doc_academico))];
-    const totalSubidos = idsSubidosEmp.length;
-    const totalFaltantes = tiposDoc.filter((t) => !idsSubidosEmp.includes(t.id_tipo_doc_academico)).length;
+    const idsSubidosEmp   = [...new Set(todosLosDocsEmp.map((d) => d.id_tipo_doc_academico))];
+    const totalSubidos    = idsSubidosEmp.length;
+    const totalFaltantes  = tiposDoc.filter((t) => !idsSubidosEmp.includes(t.id_tipo_doc_academico)).length;
 
     const contenido: any[] = [
-      ...this.headerBlock(
-        'INFORMACIÓN ACADÉMICA',
-        `${emp.nombre_empleado} ${emp.apellido_empleado}`,
-      ),
+      ...this.headerBlock('INFORMACIÓN ACADÉMICA', `${emp.nombre_empleado} ${emp.apellido_empleado}`),
     ];
 
+    // Tarjeta resumen del empleado
     contenido.push({
-      columns: [
-        {
-          stack: [
-            this.filaInfo('Correo', emp.correo),
-            this.filaInfo('Teléfono', emp.telefono),
-            this.filaInfo('Dirección', emp.direccion),
+      table: {
+        widths: ['*'],
+        body: [[{
+          columns: [
+            {
+              stack: [
+                this.filaInfoCompacta('Correo',    emp.correo),
+                this.filaInfoCompacta('Teléfono',  emp.telefono),
+                this.filaInfoCompacta('Dirección', emp.direccion),
+              ],
+              width: '55%',
+            },
+            {
+              table: {
+                widths: ['*', '*', '*'],
+                body: [
+                  [
+                    { text: 'Registros',      fontSize: 7, bold: true, color: COLOR_MUTED, alignment: 'center' },
+                    { text: 'Docs. Subidos',  fontSize: 7, bold: true, color: COLOR_MUTED, alignment: 'center' },
+                    { text: 'Docs. Faltantes', fontSize: 7, bold: true, color: COLOR_MUTED, alignment: 'center' },
+                  ],
+                  [
+                    { text: String(emp.academicos.length), fontSize: 16, bold: true, color: COLOR_PRIMARY, alignment: 'center' },
+                    { text: String(totalSubidos),           fontSize: 16, bold: true, color: COLOR_SUCCESS, alignment: 'center' },
+                    { text: String(totalFaltantes),         fontSize: 16, bold: true, color: totalFaltantes > 0 ? COLOR_WARNING : COLOR_MUTED, alignment: 'center' },
+                  ],
+                ],
+              },
+              layout: 'noBorders',
+              width: '45%',
+            },
           ],
-          width: '55%',
-        },
-        {
-          table: {
-            widths: ['*', '*', '*'],
-            body: [
-              [
-                { text: 'Inf. Académica', fontSize: 8, bold: true, color: COLOR_MUTED, alignment: 'center' },
-                { text: 'Docs. Subidos', fontSize: 8, bold: true, color: COLOR_MUTED, alignment: 'center' },
-                { text: 'Docs. Faltantes', fontSize: 8, bold: true, color: COLOR_MUTED, alignment: 'center' },
-              ],
-              [
-                { text: String(emp.academicos.length), fontSize: 18, bold: true, color: COLOR_PRIMARY, alignment: 'center' },
-                { text: String(totalSubidos), fontSize: 18, bold: true, color: COLOR_SUCCESS, alignment: 'center' },
-                { text: String(totalFaltantes), fontSize: 18, bold: true, color: totalFaltantes > 0 ? COLOR_WARNING : COLOR_MUTED, alignment: 'center' },
-              ],
-            ],
-          },
-          layout: 'noBorders',
-          width: '45%',
-        },
-      ],
-      margin: [0, 0, 0, 12],
+          margin: [8, 8, 8, 8],
+        }]],
+      },
+      layout: { hLineWidth: () => 0.5, vLineWidth: () => 0.5, hLineColor: () => '#CBD5E0', vLineColor: () => '#CBD5E0' },
+      margin: [0, 0, 0, 8],
     });
 
     if (emp.academicos.length === 0) {
-      contenido.push({
-        text: 'Este empleado no tiene información académica registrada.',
-        italics: true,
-        color: COLOR_MUTED,
-        margin: [0, 8],
-      });
+      contenido.push({ text: 'Este empleado no tiene información académica registrada.', italics: true, color: COLOR_MUTED, fontSize: 8, margin: [0, 8] });
       return this.generarPDF(contenido, `academico_${id}`, res);
     }
 
@@ -982,350 +992,96 @@ export class ReportesService {
       contenido.push(this.tarjetaInfoAcademica(emp.academicos[i], i));
     }
 
-    contenido.push(
-      ...this.seccionDocumentosAcademicos(todosLosDocsEmp, tiposDoc),
-    );
+    contenido.push(...this.seccionDocumentosAcademicos(todosLosDocsEmp, tiposDoc));
 
     return this.generarPDF(contenido, `academico_${id}`, res);
   }
 
   // ============================
-  // REPORTE NÓMINAS POR EMPLEADO (historial)
+  // REPORTE NÓMINAS POR EMPLEADO
   // ============================
 
   async generarReporteNominasPorEmpleado(id: number, res: any) {
     const emp = await this.prisma.empleado.findUnique({
       where: { id_empleado: id },
+      include: { puesto: true, departamento: true },
     });
 
-    if (!emp) {
-      throw new NotFoundException(`El empleado con ID ${id} no existe`);
-    }
+    if (!emp) throw new NotFoundException(`El empleado con ID ${id} no existe`);
 
     const detalles = await this.prisma.detalleNomina.findMany({
       where: { id_empleado: id, eliminado: { not: true } },
       include: {
         nomina: true,
-        conceptos: {
-          where: { eliminado: { not: true } },
-          include: { concepto: true },
-        },
+        empleado: { include: { puesto: true, departamento: true } },
+        conceptos: { where: { eliminado: { not: true } }, include: { concepto: true } },
       },
       orderBy: { nomina: { fecha_creacion: 'desc' } },
     });
 
-    const totalAcumulado = detalles.reduce(
-      (acc, d) => acc + Number(d.total_liquido ?? 0),
-      0,
-    );
+    const totalAcumulado = detalles.reduce((acc, d) => acc + Number(d.total_liquido ?? 0), 0);
 
     const contenido: any[] = [
-      ...this.headerBlock(
-        'HISTORIAL DE NÓMINAS',
-        `${emp.nombre_empleado} ${emp.apellido_empleado}`,
-      ),
+      ...this.headerBlock('HISTORIAL DE BOLETAS', `${emp.nombre_empleado} ${emp.apellido_empleado}  ·  ${detalles.length} nóminas`),
+      {
+        table: {
+          widths: ['*', '*', '*'],
+          body: [
+            [
+              { text: 'Empleado',             fontSize: 8, bold: true, color: COLOR_MUTED, alignment: 'center' },
+              { text: 'Nóminas Participadas', fontSize: 8, bold: true, color: COLOR_MUTED, alignment: 'center' },
+              { text: 'Total Acumulado',      fontSize: 8, bold: true, color: COLOR_MUTED, alignment: 'center' },
+            ],
+            [
+              { text: `${emp.nombre_empleado} ${emp.apellido_empleado}`, fontSize: 11, bold: true, color: COLOR_PRIMARY, alignment: 'center' },
+              { text: String(detalles.length), fontSize: 18, bold: true, color: COLOR_PRIMARY, alignment: 'center' },
+              { text: `Q${totalAcumulado.toFixed(2)}`, fontSize: 14, bold: true, color: COLOR_SUCCESS, alignment: 'center' },
+            ],
+          ],
+        },
+        layout: 'noBorders',
+        fillColor: COLOR_ACCENT,
+        margin: [0, 0, 0, 16],
+      },
     ];
 
-    contenido.push({
-      columns: [
-        {
-          stack: [
-            this.filaInfo('Correo', emp.correo),
-            this.filaInfo('Teléfono', emp.telefono),
-          ],
-          width: '55%',
-        },
-        {
-          table: {
-            widths: ['*', '*'],
-            body: [
-              [
-                { text: 'Nóminas Participadas', fontSize: 8, bold: true, color: COLOR_MUTED, alignment: 'center' },
-                { text: 'Total Acumulado', fontSize: 8, bold: true, color: COLOR_MUTED, alignment: 'center' },
-              ],
-              [
-                { text: String(detalles.length), fontSize: 18, bold: true, color: COLOR_PRIMARY, alignment: 'center' },
-                { text: `Q${totalAcumulado.toFixed(2)}`, fontSize: 14, bold: true, color: COLOR_SUCCESS, alignment: 'center' },
-              ],
-            ],
-          },
-          layout: 'noBorders',
-          width: '45%',
-        },
-      ],
-      margin: [0, 0, 0, 12],
-    });
-
     if (detalles.length === 0) {
-      contenido.push({
-        text: 'Este empleado no ha participado en ninguna nómina.',
-        italics: true,
-        color: COLOR_MUTED,
-        margin: [0, 8],
-      });
-      return this.generarPDF(contenido, `nominas_empleado_${id}`, res);
+      contenido.push({ text: 'Este empleado no ha participado en ninguna nómina.', italics: true, color: COLOR_MUTED, margin: [0, 8] });
+      return this.generarPDF(contenido, `boletas_empleado_${id}`, res);
     }
 
-    contenido.push({ text: 'Resumen por Nómina', style: 'subheader' });
-    contenido.push(
-      this.tablaConceptos([
-        ['Nómina #', 'Periodo', 'Tipo', 'Estado', 'Salario Base', 'H. Extra', 'Total Líquido'],
-        ...detalles.map((d) => [
-          String(d.nomina.id_nomina),
-          d.nomina.periodo,
-          d.nomina.tipo,
-          d.nomina.estado,
-          `Q${Number(d.salario_base).toFixed(2)}`,
-          String(d.horas_extra),
-          `Q${Number(d.total_liquido ?? 0).toFixed(2)}`,
-        ]),
-      ]),
-    );
-
-    contenido.push(this.seccionBlock('DETALLE DE CONCEPTOS POR NÓMINA'));
-
-    for (const d of detalles) {
-      contenido.push({
-        text: `Nómina #${d.nomina.id_nomina} — ${d.nomina.periodo}`,
-        bold: true,
-        fontSize: 10,
-        color: COLOR_PRIMARY,
-        margin: [0, 8, 0, 2],
-      });
-
-      if (d.conceptos.length === 0) {
-        contenido.push({
-          text: 'Sin conceptos registrados en esta nómina.',
-          fontSize: 9,
-          color: COLOR_MUTED,
-          italics: true,
-          margin: [0, 0, 0, 6],
-        });
-        continue;
-      }
-
-      contenido.push(
-        this.tablaConceptos([
-          ['Concepto', 'Tipo', 'Monto'],
-          ...d.conceptos.map((c) => [
-            c.concepto.nombre,
-            c.concepto.tipo,
-            `Q${Number(c.monto).toFixed(2)}`,
-          ]),
-        ]),
-      );
+    for (let i = 0; i < detalles.length; i++) {
+      if (i > 0) contenido.push({ text: '', pageBreak: 'before' });
+      contenido.push(...this.baucherPago(detalles[i], detalles[i].nomina));
     }
 
-    return this.generarPDF(contenido, `nominas_empleado_${id}`, res);
+    return this.generarPDF(contenido, `boletas_empleado_${id}`, res);
   }
 
   // ============================
   // REPORTE DETALLE EMPLEADO EN NÓMINA ESPECÍFICA
   // ============================
 
-  async generarReporteDetalleEmpleadoEnNomina(
-    nominaId: number,
-    empleadoId: number,
-    res: any,
-  ) {
+  async generarReporteDetalleEmpleadoEnNomina(nominaId: number, empleadoId: number, res: any) {
     const nomina = await this.prisma.nomina.findUnique({
       where: { id_nomina: nominaId },
     });
 
-    if (!nomina) {
-      throw new NotFoundException(`La nómina con ID ${nominaId} no existe`);
-    }
+    if (!nomina) throw new NotFoundException(`La nómina con ID ${nominaId} no existe`);
 
     const detalle = await this.prisma.detalleNomina.findFirst({
       where: { id_nomina: nominaId, id_empleado: empleadoId, eliminado: { not: true } },
       include: {
-        empleado: true,
-        conceptos: {
-          include: { concepto: true },
-        },
+        empleado: { include: { puesto: true, departamento: true } },
+        conceptos: { include: { concepto: true } },
       },
     });
 
-    if (!detalle) {
-      throw new NotFoundException(
-        `El empleado con ID ${empleadoId} no tiene detalle en la nómina ${nominaId}`,
-      );
-    }
-
-    const conceptosActivos = detalle.conceptos.filter((c) => c.eliminado !== true);
-
-    const contenido: any[] = [
-      ...this.headerBlock(
-        'DETALLE DE NÓMINA',
-        `${detalle.empleado.nombre_empleado} ${detalle.empleado.apellido_empleado}  ·  Nómina #${nominaId}`,
-      ),
-    ];
-
-    contenido.push({
-      columns: [
-        {
-          stack: [
-            { text: 'DATOS DE LA NÓMINA', fontSize: 8, bold: true, color: COLOR_MUTED, margin: [0, 0, 0, 4] },
-            this.filaInfo('Nómina #', String(nomina.id_nomina)),
-            this.filaInfo('Periodo', nomina.periodo),
-            this.filaInfo('Tipo', nomina.tipo),
-            this.filaInfo('Fecha', new Date(nomina.fecha_creacion).toLocaleDateString('es-GT')),
-          ],
-          width: '45%',
-        },
-        {
-          stack: [
-            { text: 'DATOS DEL EMPLEADO', fontSize: 8, bold: true, color: COLOR_MUTED, margin: [0, 0, 0, 4] },
-            this.filaInfo('Correo', detalle.empleado.correo),
-            this.filaInfo('Teléfono', detalle.empleado.telefono),
-            this.filaInfo('Dirección', detalle.empleado.direccion),
-            this.filaInfo('Estado', detalle.empleado.estado),
-          ],
-          width: '45%',
-        },
-        {
-          stack: [
-            { text: 'ESTADO', fontSize: 8, bold: true, color: COLOR_MUTED, margin: [0, 0, 0, 6] },
-            this.badgeEstado(nomina.estado),
-          ],
-          width: '10%',
-          alignment: 'right',
-        },
-      ],
-      margin: [0, 0, 0, 12],
-    });
-
-    contenido.push(this.seccionBlock('CÁLCULO DE HABERES'));
-
-    contenido.push(
-      this.tablaConceptos([
-        ['Concepto', 'Valor'],
-        ['Salario Base', `Q${Number(detalle.salario_base).toFixed(2)}`],
-        ['Horas Trabajadas', String(detalle.horas_trabajadas)],
-        ['Horas Extra', String(detalle.horas_extra)],
-        ['Pago Horas Normales', detalle.pago_horas_normales != null ? `Q${Number(detalle.pago_horas_normales).toFixed(2)}` : '—'],
-        ['Pago Horas Extra', detalle.pago_horas_extra != null ? `Q${Number(detalle.pago_horas_extra).toFixed(2)}` : '—'],
-      ]),
-    );
-
-    contenido.push(this.seccionBlock('CONCEPTOS APLICADOS'));
-
-    if (conceptosActivos.length === 0) {
-      contenido.push({
-        text: 'No hay conceptos registrados en este detalle de nómina.',
-        italics: true,
-        color: COLOR_MUTED,
-        fontSize: 9,
-        margin: [0, 4, 0, 8],
-      });
-    } else {
-
-      const TIPOS_INGRESO = ['Bonificacion', 'Comision'];
-      const TIPOS_DEDUCCION = ['Deduccion', 'Descuento'];
-
-      const ingresos = conceptosActivos.filter((c) =>
-        TIPOS_INGRESO.includes(c.concepto.tipo),
-      );
-      const deducciones = conceptosActivos.filter((c) =>
-        TIPOS_DEDUCCION.includes(c.concepto.tipo),
-      );
-      const otros = conceptosActivos.filter(
-        (c) =>
-          !TIPOS_INGRESO.includes(c.concepto.tipo) &&
-          !TIPOS_DEDUCCION.includes(c.concepto.tipo),
-      );
-
-      const subtotalIngresos = ingresos.reduce((acc, c) => acc + Number(c.monto), 0);
-      const subtotalDeducciones = deducciones.reduce((acc, c) => acc + Number(c.monto), 0);
-
-      if (ingresos.length > 0) {
-        contenido.push({
-          text: '▲  Ingresos (Bonificaciones y Comisiones)',
-          bold: true,
-          fontSize: 9,
-          color: COLOR_SUCCESS,
-          margin: [0, 6, 0, 2],
-        });
-        contenido.push(
-          this.tablaConceptos([
-            ['Concepto', 'Tipo', 'Monto'],
-            ...ingresos.map((c) => [
-              c.concepto.nombre,
-              c.concepto.tipo,
-              `Q${Number(c.monto).toFixed(2)}`,
-            ]),
-            ['', 'Subtotal', `Q${subtotalIngresos.toFixed(2)}`],
-          ]),
-        );
-      }
-
-      if (deducciones.length > 0) {
-        contenido.push({
-          text: '▼  Deducciones y Descuentos',
-          bold: true,
-          fontSize: 9,
-          color: COLOR_WARNING,
-          margin: [0, 6, 0, 2],
-        });
-        contenido.push(
-          this.tablaConceptos([
-            ['Concepto', 'Tipo', 'Monto'],
-            ...deducciones.map((c) => [
-              c.concepto.nombre,
-              c.concepto.tipo,
-              `Q${Number(c.monto).toFixed(2)}`,
-            ]),
-            ['', 'Subtotal', `Q${subtotalDeducciones.toFixed(2)}`],
-          ]),
-        );
-      }
-
-      if (otros.length > 0) {
-        contenido.push({
-          text: '●  Otros Conceptos',
-          bold: true,
-          fontSize: 9,
-          color: COLOR_MUTED,
-          margin: [0, 6, 0, 2],
-        });
-        contenido.push(
-          this.tablaConceptos([
-            ['Concepto', 'Tipo', 'Monto'],
-            ...otros.map((c) => [
-              c.concepto.nombre,
-              c.concepto.tipo,
-              `Q${Number(c.monto).toFixed(2)}`,
-            ]),
-          ]),
-        );
-      }
-    }
-
-    contenido.push({
-      table: {
-        widths: ['*', 'auto'],
-        body: [
-          [
-            { text: 'TOTAL LÍQUIDO A RECIBIR', bold: true, fontSize: 12, color: COLOR_WHITE, margin: [8, 10] },
-            {
-              text: `Q${Number(detalle.total_liquido ?? 0).toFixed(2)}`,
-              bold: true,
-              fontSize: 16,
-              color: COLOR_WHITE,
-              alignment: 'right',
-              margin: [8, 8],
-            },
-          ],
-        ],
-      },
-      layout: 'noBorders',
-      fillColor: COLOR_PRIMARY,
-      margin: [0, 12, 0, 8],
-    });
+    if (!detalle) throw new NotFoundException(`El empleado con ID ${empleadoId} no tiene detalle en la nómina ${nominaId}`);
 
     return this.generarPDF(
-      contenido,
-      `nomina_${nominaId}_empleado_${empleadoId}`,
+      [...this.baucherPago(detalle, nomina)],
+      `baucher_nomina${nominaId}_emp${empleadoId}`,
       res,
     );
   }
