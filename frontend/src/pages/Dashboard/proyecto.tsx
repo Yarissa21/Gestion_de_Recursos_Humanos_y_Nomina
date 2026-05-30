@@ -1,8 +1,15 @@
 import Header from "../../components/Header";
+import YarissaFoto  from "../../assets/Yarissa.png";
+import AnthonyFoto  from "../../assets/Anthony.png";
+import CristinaFoto from "../../assets/Cristina.png";
+import PedroFoto    from "../../assets/Pedro.png";
+import YeniferFoto  from "../../assets/Yenifer.png";
 
 interface Integrante {
   nombre: string;
   carnet: string;
+  foto: string;
+  github: string;
   backend?: string[];
   frontend?: string[];
   despliegue?: string[];
@@ -11,70 +18,77 @@ interface Integrante {
 
 const integrantes: Integrante[] = [
   {
-    nombre: "Yarissa Alexandra Hernández Mijangos",
+    nombre: "Yarissa Alexandra Hernandez Mijangos",
     carnet: "1790-23-1812",
+    foto: YarissaFoto,
+    github: "https://github.com/Yarissa21",
     backend: [
-      "Implementación de base de datos con Prisma",
-      "Módulo departamento",
-      "Módulo puesto de trabajo",
-      "Módulo de nómina",
-      "Módulo de concepto nómina",
-      "Módulo de empleados",
+      "Implementacion de base de datos con Prisma",
+      "Modulo departamento",
+      "Modulo puesto de trabajo",
+      "Modulo de nomina",
+      "Modulo de concepto nomina",
+      "Modulo de empleados",
       "Arreglo de problemas de backend",
-      "Implementación de Swagger",
-
+      "Implementacion de Swagger",
     ],
-    frontend: [
-      "Arreglo de problemas de frontend"
-    ],
+    frontend: ["Arreglo de problemas de frontend"],
     despliegue: ["Base de datos en Neon", "Frontend en Netlify"],
-    documentacion: ["Manual técnico"],
+    documentacion: ["Manual tecnico"],
   },
   {
     nombre: "Anthony Obed Ortiz Ochoa",
     carnet: "1790-23-3899",
+    foto: AnthonyFoto,
+    github: "https://github.com/AnthonyOrtiz8A",
     backend: [
-      "Módulo de académicos",
-      "Módulo de tipo documento académico",
-      "Módulo de reportes",
-      "Implementación de validaciones faltantes",
+      "Modulo de academicos",
+      "Modulo de tipo documento academico",
+      "Modulo de reportes",
+      "Implementacion de validaciones faltantes",
       "Arreglo de problemas de backend",
     ],
     frontend: [
-      "Llamada de todos los módulos y diseño de la página",
-      "Implementación de mensajes de alerta y validaciones faltantes",
+      "Llamada de todos los modulos y diseno de la pagina",
+      "Implementacion de mensajes de alerta y validaciones faltantes",
       "Arreglo de problemas de frontend",
     ],
     despliegue: ["Backend en Render"],
     documentacion: ["Manual de usuario", "Minutas semana 4 hasta finalizar"],
   },
   {
-    nombre: "María Cristina Maldonado León",
+    nombre: "Maria Cristina Maldonado Leon",
     carnet: "1790-23-24987",
+    foto: CristinaFoto,
+    github: "https://github.com/Gamesjuegos25",
     backend: [
-      "Módulo de auth (registro y login de usuarios)",
-      "Módulo de usuarios",
-      "Agregar permisos en otros módulos",
+      "Modulo de auth (registro y login de usuarios)",
+      "Modulo de usuarios",
+      "Agregar permisos en otros modulos",
     ],
     frontend: [
-      "Realización del login y permisos",
-      "Plantilla principal de la página",
-      "Unificación de backend y frontend",
+      "Realizacion del login y permisos",
+      "Plantilla principal de la pagina",
+      "Unificacion de backend y frontend",
     ],
-    documentacion: ["Redacción de informe y dercas"],
+    documentacion: ["Redaccion de informe y dercas"],
   },
   {
     nombre: "Pedro Jose Barillas Melgar",
     carnet: "1790-22-17364",
-    backend: ["Módulo de expediente", "Módulo validación expediente"],
-    documentacion: ["Apoyo en redacción de informe", "Dercas"],
+    foto: PedroFoto,
+    github: "https://github.com/PEDROJOSEGGGG",
+    backend: ["Modulo de expediente", "Modulo validacion expediente"],
+    documentacion: ["Apoyo en redaccion de informe", "Dercas"],
   },
   {
-    nombre: "Yeniffer Nayeli Zepeda Ramírez",
+    nombre: "Yeniffer Nayeli Zepeda Ramirez",
     carnet: "1790-23-8589",
+    foto: YeniferFoto,
+    github: "https://github.com/yzepedar",
     documentacion: [
-      "Redacción de minutas hasta la semana 3",
-      "Apoyo en redacción de informe",
+      "Redaccion de minutas hasta la semana 3",
+      "Apoyo en redaccion de informe",
     ],
   },
 ];
@@ -156,7 +170,6 @@ export default function Proyecto() {
 
       <main className="max-w-6xl mx-auto px-6 mt-10 pb-16">
 
-        {/* Header */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-8 flex items-center gap-4">
           <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -168,81 +181,85 @@ export default function Proyecto() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Aportes del equipo de desarrollo</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Grupo No. 2 — Sistema de Gestión de RRHH y Nómina</p>
+            <p className="text-sm text-gray-500 mt-0.5">Grupo No. 2 — Sistema de Gestion de RRHH y Nomina</p>
           </div>
         </div>
 
-        {/* Leyenda */}
         <div className="flex flex-wrap gap-4 mb-6">
           {[
-            { color: "#185FA5", bg: "#E6F1FB", label: "Backend" },
-            { color: "#0F6E56", bg: "#E1F5EE", label: "Frontend" },
-            { color: "#BA7517", bg: "#FAEEDA", label: "Despliegue" },
-            { color: "#993556", bg: "#FBEAF0", label: "Documentación" },
-          ].map((l) => (
-            <div key={l.label} className="flex items-center gap-2 text-xs text-gray-500">
-              <span className="w-3 h-3 rounded-sm shrink-0" style={{ background: l.color }} />
-              {l.label}
+            { color: "#185FA5", label: "Backend" },
+            { color: "#0F6E56", label: "Frontend" },
+            { color: "#BA7517", label: "Despliegue" },
+            { color: "#993556", label: "Documentacion" },
+          ].map((leyenda) => (
+            <div key={leyenda.label} className="flex items-center gap-2 text-xs text-gray-500">
+              <span className="w-3 h-3 rounded-sm shrink-0" style={{ background: leyenda.color }} />
+              {leyenda.label}
             </div>
           ))}
         </div>
 
-        {/* Integrantes */}
         <p className="text-xs font-medium uppercase tracking-widest text-gray-400 mb-4 pb-2 border-b border-gray-100">
           Integrantes y aportes
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-10">
-          {integrantes.map((int) => (
-            <div key={int.carnet} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-
-              {/* Card header */}
+          {integrantes.map((miembro) => (
+            <div key={miembro.carnet} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
               <div className="flex items-center gap-3 mb-4 pb-4 border-b border-gray-100">
-                {/* Espacio foto */}
-                <div className="w-14 h-14 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 flex flex-col items-center justify-center shrink-0 gap-0.5">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                    <circle cx="12" cy="7" r="4" />
-                  </svg>
-                  <span className="text-gray-300 text-[9px]">foto</span>
-                </div>
+                <a href={miembro.github} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                  <div className="w-24 h-24 rounded-xl overflow-hidden border border-gray-100 hover:opacity-90 transition">
+                    <img src={miembro.foto} alt={miembro.nombre} className="w-full h-full object-cover" />
+                  </div>
+                </a>
                 <div>
-                  <p className="text-sm font-medium text-gray-900 leading-tight">{int.nombre}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">{int.carnet}</p>
+                  <a
+                    href={miembro.github}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-medium text-gray-900 leading-tight hover:text-blue-600 transition block"
+                  >
+                    {miembro.nombre}
+                  </a>
+                  <p className="text-xs text-gray-400 mt-0.5">{miembro.carnet}</p>
+                  <a
+                    href={miembro.github}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 transition mt-1.5"
+                  >
+                    🔗 GitHub
+                  </a>
                 </div>
               </div>
-
-              {/* Aportes */}
-              {int.backend && (
-                <AporteSeccion label="Backend" items={int.backend} color="text-blue-600" icono="⚙️" />
+              {miembro.backend && (
+                <AporteSeccion label="Backend" items={miembro.backend} color="text-blue-600" icono="⚙️" />
               )}
-              {int.frontend && (
-                <AporteSeccion label="Frontend" items={int.frontend} color="text-emerald-700" icono="🖥️" />
+              {miembro.frontend && (
+                <AporteSeccion label="Frontend" items={miembro.frontend} color="text-emerald-700" icono="🖥️" />
               )}
-              {int.despliegue && (
-                <AporteSeccion label="Despliegue" items={int.despliegue} color="text-amber-700" icono="🚀" />
+              {miembro.despliegue && (
+                <AporteSeccion label="Despliegue" items={miembro.despliegue} color="text-amber-700" icono="🚀" />
               )}
-              {int.documentacion && (
-                <AporteSeccion label="Documentación" items={int.documentacion} color="text-pink-700" icono="📄" />
+              {miembro.documentacion && (
+                <AporteSeccion label="Documentacion" items={miembro.documentacion} color="text-pink-700" icono="📄" />
               )}
             </div>
           ))}
         </div>
 
-        {/* Stack tecnológico */}
         <p className="text-xs font-medium uppercase tracking-widest text-gray-400 mb-4 pb-2 border-b border-gray-100">
-          Stack tecnológico utilizado
+          Stack tecnologico utilizado
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-          {/* Frontend */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
             <div className="flex items-center gap-2 mb-4">
               <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <rect x="3" y="3" width="18" height="18" rx="2" />
-                  <path d="M3 9h18" /><path d="M9 21V9" />
+                  <path d="M3 9h18" />
+                  <path d="M9 21V9" />
                 </svg>
               </div>
               <p className="text-sm font-medium text-gray-800">Frontend</p>
@@ -254,13 +271,13 @@ export default function Proyecto() {
             </div>
           </div>
 
-          {/* Backend */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
             <div className="flex items-center gap-2 mb-4">
               <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-emerald-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <rect x="2" y="3" width="20" height="14" rx="2" />
-                  <path d="M8 21h8" /><path d="M12 17v4" />
+                  <path d="M8 21h8" />
+                  <path d="M12 17v4" />
                 </svg>
               </div>
               <p className="text-sm font-medium text-gray-800">Backend</p>
@@ -272,7 +289,6 @@ export default function Proyecto() {
             </div>
           </div>
 
-          {/* DB y despliegue */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
             <div className="flex items-center gap-2 mb-4">
               <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
@@ -290,7 +306,6 @@ export default function Proyecto() {
               ))}
             </div>
           </div>
-
         </div>
       </main>
     </div>
