@@ -478,7 +478,7 @@ export default function Empleados() {
                 options={[{ id_departamento: "todos", nombre_departamento: "Todos los departamentos" }, ...departamentos]}
                 value={filtroDep}
                 onChange={(v) => setFiltroDep(v === "todos" ? "todos" : Number(v))}
-                placeholder="Todos los departamentos"
+                placeholder="Seleccione un filtro"
                 labelKey={(d) => d.nombre_departamento}
                 valueKey={(d) => d.id_departamento}
               />
