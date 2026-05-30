@@ -16,6 +16,101 @@ interface Puesto {
   departamento: Departamento;
 }
 
+function SearchSelect({
+  options,
+  value,
+  onChange,
+  placeholder,
+  labelKey,
+  valueKey,
+  disabled = false,
+}: {
+  options: any[];
+  value: number | "";
+  onChange: (v: number | "") => void;
+  placeholder: string;
+  labelKey: (o: any) => string;
+  valueKey: (o: any) => number;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busq, setBusq] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+  const mostrarBusqueda = options.length > 5;
+
+  const filtrados = busq.trim()
+    ? options.filter((o) => labelKey(o).toLowerCase().includes(busq.toLowerCase()))
+    : options;
+
+  const seleccionado = options.find((o) => valueKey(o) === value);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setBusq("");
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative w-full">
+      <button
+        type="button"
+        onClick={() => { if (!disabled) setOpen(!open); }}
+        className={`w-full border rounded-md px-3 py-2 text-sm text-left flex items-center justify-between gap-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+          disabled ? "bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed" : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
+        }`}
+      >
+        <span className="truncate">
+          {seleccionado ? labelKey(seleccionado) : placeholder}
+        </span>
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
+          {mostrarBusqueda && (
+            <div className="p-2 border-b border-gray-100">
+              <input
+                autoFocus
+                type="text"
+                placeholder="Buscar..."
+                value={busq}
+                onChange={(e) => setBusq(e.target.value)}
+                className="w-full border border-gray-200 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+              />
+            </div>
+          )}
+          <ul className="max-h-48 overflow-y-auto py-1">
+            <li
+              onClick={() => { onChange(""); setOpen(false); setBusq(""); }}
+              className="px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 cursor-pointer"
+            >
+              {placeholder}
+            </li>
+            {filtrados.length === 0 ? (
+              <li className="px-3 py-2 text-sm text-gray-400">Sin resultados</li>
+            ) : filtrados.map((o) => (
+              <li
+                key={valueKey(o)}
+                onClick={() => { onChange(valueKey(o)); setOpen(false); setBusq(""); }}
+                className={`px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 hover:text-blue-700 ${value === valueKey(o) ? "bg-blue-50 text-blue-700 font-medium" : "text-gray-700"}`}
+              >
+                {labelKey(o)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const CACHE_KEY = "cache_puestos";
 const CACHE_TTL = 5 * 60 * 1000;
 
@@ -50,9 +145,10 @@ export default function Puestos() {
   };
 
   const limpiarCache = () => {
-    sessionStorage.removeItem(CACHE_KEY);       
-    sessionStorage.removeItem("dashboard_cache");  
+    sessionStorage.removeItem(CACHE_KEY);
+    sessionStorage.removeItem("dashboard_cache");
   };
+
   const cargarDatos = async (forzar = false) => {
     if (!forzar) {
       const cache = sessionStorage.getItem(CACHE_KEY);
@@ -120,19 +216,24 @@ export default function Puestos() {
     }
     setGuardando(true);
     try {
-      if (modalEditar) {
-        await fetchWithFallback(`/puestos/${modalEditar.id_puesto}`, {
-          method: "PUT",
-          headers,
-          body: JSON.stringify({ nombre_puesto: nombrePuesto.trim(), id_departamento: depPuesto }),
-        });
-      } else {
-        await fetchWithFallback("/puestos", {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ nombre_puesto: nombrePuesto.trim(), id_departamento: depPuesto }),
-        });
+      const res = modalEditar
+        ? await fetchWithFallback(`/puestos/${modalEditar.id_puesto}`, {
+            method: "PUT",
+            headers,
+            body: JSON.stringify({ nombre_puesto: nombrePuesto.trim(), id_departamento: depPuesto }),
+          })
+        : await fetchWithFallback("/puestos", {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ nombre_puesto: nombrePuesto.trim(), id_departamento: depPuesto }),
+          });
+
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err?.message || "No se pudo guardar el puesto.");
+        return;
       }
+
       cerrarModal();
       limpiarCache();
       cargarDatos(true);
@@ -146,7 +247,12 @@ export default function Puestos() {
   const handleEliminar = async (id: number) => {
     if (!confirm("¿Eliminar este puesto?")) return;
     try {
-      await fetchWithFallback(`/puestos/${id}`, { method: "DELETE", headers });
+      const res = await fetchWithFallback(`/puestos/${id}`, { method: "DELETE", headers });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err?.message || "No se pudo eliminar.");
+        return;
+      }
       limpiarCache();
       cargarDatos(true);
     } catch {
@@ -290,7 +396,7 @@ export default function Puestos() {
                   </div>
 
                   {lista.length === 0 ? (
-                    <p className="text-gray-400 text-sm text-center py-6">Sin puestos en esta área</p>
+                    <p className="text-gray-400 text-sm text-center py-6">Sin puestos en este departamento</p>
                   ) : (
                     <ul className="divide-y divide-gray-50">
                       {lista.map((puesto) => (
@@ -353,18 +459,16 @@ export default function Puestos() {
             />
 
             <label className="block text-sm font-medium text-gray-700 mb-1">Departamento</label>
-            <select
-              value={depPuesto}
-              onChange={(e) => setDepPuesto(Number(e.target.value))}
-              className="border border-gray-300 rounded-md w-full p-2 mb-6 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
-            >
-              <option value="">Seleccionar departamento</option>
-              {departamentos.map((dep) => (
-                <option key={dep.id_departamento} value={dep.id_departamento}>
-                  {dep.nombre_departamento}
-                </option>
-              ))}
-            </select>
+            <div className="mb-6">
+              <SearchSelect
+                options={departamentos}
+                value={depPuesto}
+                onChange={(v) => setDepPuesto(v === "" ? "" : Number(v))}
+                placeholder="Seleccionar departamento"
+                labelKey={(dep) => dep.nombre_departamento}
+                valueKey={(dep) => dep.id_departamento}
+              />
+            </div>
 
             <div className="flex gap-3">
               <button

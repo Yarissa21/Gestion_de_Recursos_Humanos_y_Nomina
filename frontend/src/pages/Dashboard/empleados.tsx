@@ -89,6 +89,105 @@ const minFecha = new Date(hoy.getFullYear() - 100, hoy.getMonth(), hoy.getDate()
 const CACHE_KEY = "cache_empleados";
 const CACHE_TTL = 5 * 60 * 1000;
 
+function SearchSelect({
+  options,
+  value,
+  onChange,
+  placeholder,
+  labelKey,
+  valueKey,
+  disabled = false,
+}: {
+  options: any[];
+  value: number | string | "";
+  onChange: (v: number | string | "") => void;
+  placeholder: string;
+  labelKey: (o: any) => string;
+  valueKey: (o: any) => number | string;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busq, setBusq] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+  const mostrarBusqueda = options.length > 5;
+
+  const filtrados = busq.trim()
+    ? options.filter((o) => labelKey(o).toLowerCase().includes(busq.toLowerCase()))
+    : options;
+
+  const seleccionado = options.find((o) => valueKey(o) === value);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setBusq("");
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative w-full">
+      <button
+        type="button"
+        onClick={() => { if (!disabled) setOpen(!open); }}
+        className={`w-full border rounded-md px-3 py-2 text-sm text-left flex items-center justify-between gap-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+          disabled
+            ? "bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed"
+            : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
+        }`}
+      >
+        <span className="truncate">
+          {seleccionado ? labelKey(seleccionado) : placeholder}
+        </span>
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
+          {mostrarBusqueda && (
+            <div className="p-2 border-b border-gray-100">
+              <input
+                autoFocus
+                type="text"
+                placeholder="Buscar..."
+                value={busq}
+                onChange={(e) => setBusq(e.target.value)}
+                className="w-full border border-gray-200 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+              />
+            </div>
+          )}
+          <ul className="max-h-48 overflow-y-auto py-1">
+            <li
+              onClick={() => { onChange(""); setOpen(false); setBusq(""); }}
+              className="px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 cursor-pointer"
+            >
+              {placeholder}
+            </li>
+            {filtrados.length === 0 ? (
+              <li className="px-3 py-2 text-sm text-gray-400">Sin resultados</li>
+            ) : filtrados.map((o) => (
+              <li
+                key={valueKey(o)}
+                onClick={() => { onChange(valueKey(o)); setOpen(false); setBusq(""); }}
+                className={`px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 hover:text-blue-700 ${
+                  value === valueKey(o) ? "bg-blue-50 text-blue-700 font-medium" : "text-gray-700"
+                }`}
+              >
+                {labelKey(o)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Empleados() {
   if (!isAdminOrRH()) return <Navigate to="/dashboard" replace />;
 
@@ -118,8 +217,8 @@ export default function Empleados() {
   };
 
   const limpiarCache = () => {
-    sessionStorage.removeItem(CACHE_KEY);       
-    sessionStorage.removeItem("dashboard_cache");  
+    sessionStorage.removeItem(CACHE_KEY);
+    sessionStorage.removeItem("dashboard_cache");
   };
 
   const cargarDatos = async (forzar = false) => {
@@ -374,15 +473,16 @@ export default function Empleados() {
                 </button>
               ))}
             </div>
-            <select value={filtroDep}
-              onChange={(e) => setFiltroDep(e.target.value === "todos" ? "todos" : Number(e.target.value))}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
-            >
-              <option value="todos">Todos los departamentos</option>
-              {departamentos.map((d) => (
-                <option key={d.id_departamento} value={d.id_departamento}>{d.nombre_departamento}</option>
-              ))}
-            </select>
+            <div className="w-52">
+              <SearchSelect
+                options={[{ id_departamento: "todos", nombre_departamento: "Todos los departamentos" }, ...departamentos]}
+                value={filtroDep}
+                onChange={(v) => setFiltroDep(v === "todos" ? "todos" : Number(v))}
+                placeholder="Todos los departamentos"
+                labelKey={(d) => d.nombre_departamento}
+                valueKey={(d) => d.id_departamento}
+              />
+            </div>
             <span className="text-sm text-gray-400 ml-auto">
               {empleadosFiltrados.length} empleado{empleadosFiltrados.length !== 1 ? "s" : ""}
             </span>
@@ -562,32 +662,30 @@ export default function Empleados() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Departamento</label>
-                <select value={form.id_departamento}
-                  onChange={(e) => {
-                    setForm((prev) => ({ ...prev, id_departamento: e.target.value, id_puesto: "" }));
+                <SearchSelect
+                  options={departamentos}
+                  value={form.id_departamento === "" ? "" : Number(form.id_departamento)}
+                  onChange={(v) => {
+                    setForm((prev) => ({ ...prev, id_departamento: v === "" ? "" : String(v), id_puesto: "" }));
                     setErrores((prev) => { const n = { ...prev }; delete n.id_departamento; return n; });
                   }}
-                  className={inputClass(errores.id_departamento)}
-                >
-                  <option value="">Seleccionar departamento</option>
-                  {departamentos.map((d) => (
-                    <option key={d.id_departamento} value={d.id_departamento}>{d.nombre_departamento}</option>
-                  ))}
-                </select>
+                  placeholder="Seleccionar departamento"
+                  labelKey={(d) => d.nombre_departamento}
+                  valueKey={(d) => d.id_departamento}
+                />
                 {errores.id_departamento && <p className="text-xs text-red-500 mt-0.5">{errores.id_departamento}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Puesto</label>
-                <select value={form.id_puesto}
-                  onChange={(e) => setField("id_puesto", e.target.value)}
+                <SearchSelect
+                  options={puestosFiltrados}
+                  value={form.id_puesto === "" ? "" : Number(form.id_puesto)}
+                  onChange={(v) => setField("id_puesto", v === "" ? "" : String(v))}
+                  placeholder="Seleccionar puesto"
+                  labelKey={(p) => p.nombre_puesto}
+                  valueKey={(p) => p.id_puesto}
                   disabled={!form.id_departamento}
-                  className={`${inputClass(errores.id_puesto)} disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  <option value="">Seleccionar puesto</option>
-                  {puestosFiltrados.map((p) => (
-                    <option key={p.id_puesto} value={p.id_puesto}>{p.nombre_puesto}</option>
-                  ))}
-                </select>
+                />
                 {errores.id_puesto && <p className="text-xs text-red-500 mt-0.5">{errores.id_puesto}</p>}
               </div>
             </div>

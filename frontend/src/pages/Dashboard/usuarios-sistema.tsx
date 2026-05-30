@@ -31,6 +31,105 @@ const parseError = (err: any): string => {
   return "Error desconocido";
 };
 
+function SearchSelect({
+  options,
+  value,
+  onChange,
+  placeholder,
+  labelKey,
+  valueKey,
+  disabled = false,
+}: {
+  options: any[];
+  value: number | "";
+  onChange: (v: number | "") => void;
+  placeholder: string;
+  labelKey: (o: any) => string;
+  valueKey: (o: any) => number;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busq, setBusq] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+  const mostrarBusqueda = options.length > 5;
+
+  const filtrados = busq.trim()
+    ? options.filter((o) => labelKey(o).toLowerCase().includes(busq.toLowerCase()))
+    : options;
+
+  const seleccionado = options.find((o) => valueKey(o) === value);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setBusq("");
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative w-full">
+      <button
+        type="button"
+        onClick={() => { if (!disabled) setOpen(!open); }}
+        className={`w-full border rounded-md px-3 py-2 text-sm text-left flex items-center justify-between gap-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+          disabled
+            ? "bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed"
+            : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
+        }`}
+      >
+        <span className="truncate">
+          {seleccionado ? labelKey(seleccionado) : placeholder}
+        </span>
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
+          {mostrarBusqueda && (
+            <div className="p-2 border-b border-gray-100">
+              <input
+                autoFocus
+                type="text"
+                placeholder="Buscar..."
+                value={busq}
+                onChange={(e) => setBusq(e.target.value)}
+                className="w-full border border-gray-200 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+              />
+            </div>
+          )}
+          <ul className="max-h-48 overflow-y-auto py-1">
+            <li
+              onClick={() => { onChange(""); setOpen(false); setBusq(""); }}
+              className="px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 cursor-pointer"
+            >
+              {placeholder}
+            </li>
+            {filtrados.length === 0 ? (
+              <li className="px-3 py-2 text-sm text-gray-400">Sin resultados</li>
+            ) : filtrados.map((o) => (
+              <li
+                key={valueKey(o)}
+                onClick={() => { onChange(valueKey(o)); setOpen(false); setBusq(""); }}
+                className={`px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 hover:text-blue-700 ${
+                  value === valueKey(o) ? "bg-blue-50 text-blue-700 font-medium" : "text-gray-700"
+                }`}
+              >
+                {labelKey(o)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const CACHE_KEY = "cache_usuarios_sistema";
 const CACHE_TTL = 5 * 60 * 1000;
 
@@ -64,9 +163,11 @@ export default function UsuariosSistema() {
   };
 
   const limpiarCache = () => {
-    sessionStorage.removeItem(CACHE_KEY);       
-    sessionStorage.removeItem("dashboard_cache");  
+    sessionStorage.removeItem(CACHE_KEY);
+    sessionStorage.removeItem("dashboard_cache");
+    sessionStorage.removeItem("cache_empleados");
   };
+
   const cargarDatos = async (forzar = false) => {
     if (!forzar) {
       const cache = sessionStorage.getItem(CACHE_KEY);
@@ -107,7 +208,7 @@ export default function UsuariosSistema() {
   }, []);
 
   const empleadosLibres = empleados.filter(
-    (emp) => !usuarios.some((u) => u.id_empleado === emp.id_empleado)
+    (emp) => !usuarios.some((u) => Number(u.id_empleado) === Number(emp.id_empleado))
   );
 
   const getNombreEmpleado = (id: number | null) => {
@@ -413,17 +514,16 @@ export default function UsuariosSistema() {
               Usuario: <span className="font-medium text-gray-800">{modalVincular.nombre}</span>
             </p>
             <label className="block text-sm font-medium text-gray-700 mb-1">Seleccionar Empleado</label>
-            <select value={empSeleccionado}
-              onChange={(e) => setEmpSeleccionado(Number(e.target.value))}
-              className="border border-gray-300 rounded-md w-full p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"
-            >
-              <option value="">— Seleccionar —</option>
-              {empleadosLibres.map((emp) => (
-                <option key={emp.id_empleado} value={emp.id_empleado}>
-                  {emp.nombre_empleado} {emp.apellido_empleado}
-                </option>
-              ))}
-            </select>
+            <div className="mb-2">
+              <SearchSelect
+                options={empleadosLibres}
+                value={empSeleccionado}
+                onChange={(v) => setEmpSeleccionado(v === "" ? "" : Number(v))}
+                placeholder="— Seleccionar —"
+                labelKey={(emp) => `${emp.nombre_empleado} ${emp.apellido_empleado}`}
+                valueKey={(emp) => emp.id_empleado}
+              />
+            </div>
             {empleadosLibres.length === 0 && (
               <p className="text-xs text-amber-600 mb-4">Todos los empleados ya están vinculados.</p>
             )}

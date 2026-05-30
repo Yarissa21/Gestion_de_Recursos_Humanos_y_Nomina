@@ -24,6 +24,9 @@ const integrantes: Integrante[] = [
       "Implementación de Swagger",
 
     ],
+    frontend: [
+      "Arreglo de problemas de frontend"
+    ],
     despliegue: ["Base de datos en Neon", "Frontend en Netlify"],
     documentacion: ["Manual técnico"],
   },
@@ -92,6 +95,7 @@ const stackBackend = [
   "Multer",
   "pdfmake",
   "class-validator / class-transformer",
+  "Swagger",
 ];
 
 const stackDB = [

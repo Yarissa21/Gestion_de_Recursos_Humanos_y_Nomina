@@ -258,9 +258,9 @@ export default function Dashboard() {
                     className="bg-white rounded-xl shadow-sm p-6 flex justify-between items-start text-left hover:shadow-md hover:-translate-y-0.5 transition w-full"
                   >
                     <div>
-                      <p className="text-gray-500 text-sm mb-1">Áreas</p>
+                      <p className="text-gray-500 text-sm mb-1">Departamentos</p>
                       <p className="text-4xl font-bold">{departamentos.length}</p>
-                      <p className="text-gray-400 text-sm mt-2">Configuradas en el sistema</p>
+                      <p className="text-gray-400 text-sm mt-2">Configurados en el sistema</p>
                     </div>
                     <div className="bg-purple-100 p-3 rounded-xl">
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -317,14 +317,14 @@ export default function Dashboard() {
                 {esAdmin ? (
                   <div className="bg-white rounded-xl shadow-sm p-6">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold">Áreas Configuradas</h3>
+                      <h3 className="text-lg font-semibold">Departamentos Configurados</h3>
                       <button onClick={() => navigate("/configAreas")} className="text-sm text-blue-600 hover:underline font-medium">
                         Gestionar →
                       </button>
                     </div>
                     {departamentos.length === 0 ? (
                       <div className="text-center py-6">
-                        <p className="text-gray-400 mb-3">No hay áreas configuradas</p>
+                        <p className="text-gray-400 mb-3">No hay departamentos configurados</p>
                         <button onClick={() => navigate("/configAreas")}
                           className="inline-flex items-center gap-2 bg-blue-600 text-white text-sm px-4 py-2 rounded-md hover:bg-blue-700 transition font-medium"
                         >
