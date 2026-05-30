@@ -45,8 +45,8 @@ export default function ConfiguracionAreas() {
   const [modal, setModal] = useState<ModalState | null>(null);
   const [guardandoModal, setGuardandoModal] = useState(false);
 
-  // formulario nueva área
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  const [busquedaDep, setBusquedaDep] = useState("");
   const [nombreArea, setNombreArea] = useState("");
   const [guardando, setGuardando] = useState(false);
 
@@ -124,7 +124,11 @@ export default function ConfiguracionAreas() {
         headers,
         body: JSON.stringify({ nombre_departamento: nombreArea.trim() }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err?.message || "No se pudo crear el área.");
+        return;
+      }
       setNombreArea("");
       setMostrarFormulario(false);
       const obligatorios = new Set<string>();
@@ -132,6 +136,8 @@ export default function ConfiguracionAreas() {
         .filter((t) => t.obligatorio)
         .forEach((t) => obligatorios.add(docKey(t)));
       setDocsSeleccionados(obligatorios);
+      sessionStorage.removeItem("cache_puestos");
+      sessionStorage.removeItem("cache_empleados");
       cargarDepartamentos();
     } catch {
       alert("No se pudo crear el área.");
@@ -143,7 +149,14 @@ export default function ConfiguracionAreas() {
   const handleEliminar = async (id: number) => {
     if (!confirm("¿Eliminar este departamento?")) return;
     try {
-      await fetchWithFallback(`/departamentos/${id}`, { method: "DELETE", headers });
+      const res = await fetchWithFallback(`/departamentos/${id}`, { method: "DELETE", headers });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err?.message || "No se pudo eliminar.");
+        return;
+      }
+      sessionStorage.removeItem("cache_puestos");
+      sessionStorage.removeItem("cache_empleados");
       cargarDepartamentos();
     } catch {
       alert("No se pudo eliminar.");
@@ -153,13 +166,20 @@ export default function ConfiguracionAreas() {
   const handleEditarGuardar = async (id: number) => {
     if (!nombreEdicion.trim()) return;
     try {
-      await fetchWithFallback(`/departamentos/${id}`, {
+      const res = await fetchWithFallback(`/departamentos/${id}`, {
         method: "PUT",
         headers,
         body: JSON.stringify({ nombre_departamento: nombreEdicion.trim() }),
       });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err?.message || "No se pudo actualizar.");
+        return;
+      }
       setEditandoId(null);
       setNombreEdicion("");
+      sessionStorage.removeItem("cache_puestos");
+      sessionStorage.removeItem("cache_empleados");
       cargarDepartamentos();
     } catch {
       alert("No se pudo actualizar.");
@@ -293,14 +313,14 @@ export default function ConfiguracionAreas() {
 
       <main className="max-w-6xl mx-auto px-6 mt-10">
 
-        {/* Título + botón Nueva Área */}
+        {/* Título + botón Nuevo Departamento */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <circle cx="12" cy="12" r="3" />
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
-            <h1 className="text-3xl font-bold">Configuración de Áreas</h1>
+            <h1 className="text-3xl font-bold">Configuración de Departamentos</h1>
           </div>
           <button
             onClick={() => setMostrarFormulario(true)}
@@ -309,18 +329,29 @@ export default function ConfiguracionAreas() {
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
             </svg>
-            Nueva Área
+            Nuevo Departamento
           </button>
         </div>
 
         {/* Lista de departamentos */}
         <div className="bg-white rounded-xl shadow-sm p-6">
-          <h2 className="text-lg font-semibold mb-4">Áreas / Departamentos</h2>
+          <h2 className="text-lg font-semibold mb-4">Departamentos</h2>
+          {departamentos.length > 5 && (
+            <div className="relative mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input type="text" placeholder="Buscar departamento..."
+                value={busquedaDep} onChange={(e) => setBusquedaDep(e.target.value)}
+                className="border border-gray-300 rounded-md pl-9 pr-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          )}
           {loading ? (
             <p className="text-gray-400 text-center py-6">Cargando...</p>
           ) : departamentos.length === 0 ? (
             <div className="text-center py-10">
-              <p className="text-gray-400 mb-4">No hay áreas creadas</p>
+              <p className="text-gray-400 mb-4">No hay departamentos creados</p>
               <button
                 onClick={() => setMostrarFormulario(true)}
                 className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition font-medium text-sm"
@@ -328,12 +359,14 @@ export default function ConfiguracionAreas() {
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
-                Crear primera área
+                Crear primer departamento
               </button>
             </div>
           ) : (
             <ul className="divide-y">
-              {departamentos.map((dep, i) => {
+              {departamentos
+                .filter((dep) => !busquedaDep.trim() || dep.nombre_departamento.toLowerCase().includes(busquedaDep.toLowerCase()))
+                .map((dep, i) => {
                 const color = depColors[i % depColors.length];
                 const estaEditando = editandoId === dep.id_departamento;
                 return (
@@ -400,12 +433,12 @@ export default function ConfiguracionAreas() {
         </div>
       </main>
 
-      {/* Modal Nueva Área */}
+      {/* Modal Nuevo Departamento */}
       {mostrarFormulario && (
         <div className="fixed inset-0 bg-black/40 flex items-start justify-center z-50 px-4 py-10 overflow-y-auto">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-2xl">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold">Nueva Área / Departamento</h2>
+              <h2 className="text-lg font-semibold">Nuevo Departamento</h2>
               <button onClick={() => setMostrarFormulario(false)} className="text-gray-400 hover:text-gray-600 transition">
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -413,7 +446,7 @@ export default function ConfiguracionAreas() {
               </button>
             </div>
 
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del Área</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del Departamento</label>
             <input
               type="text"
               placeholder="Ej: Ventas, Contabilidad, IT..."
@@ -451,7 +484,7 @@ export default function ConfiguracionAreas() {
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
-                {guardando ? "Creando..." : "Crear Área"}
+                {guardando ? "Creando..." : "Crear Departamento"}
               </button>
               <button
                 onClick={() => setMostrarFormulario(false)}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import Header from "../../components/Header";
 import { isAdmin } from "../../utils/auth";
@@ -40,6 +40,7 @@ export default function ValidacionExpediente() {
   if (!isAdmin()) return <Navigate to="/dashboard" replace />;
 
   const navigate = useNavigate();
+  const cargado = useRef(false);
 
   const [resultados, setResultados] = useState<ResultadoValidacion[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,7 +57,8 @@ export default function ValidacionExpediente() {
     Authorization: `Bearer ${token}`,
   };
 
-  const cargar = async () => {
+  const cargar = async (forzar = false) => {
+    if (!forzar && cargado.current) return;
     setLoading(true);
     try {
       const res = await fetchWithFallback("/validacion-expediente/resumen", { headers });
@@ -96,7 +98,11 @@ export default function ValidacionExpediente() {
     }
   };
 
-  useEffect(() => { cargar(); }, []);
+  useEffect(() => {
+    if (cargado.current) return;
+    cargado.current = true;
+    cargar(true);
+  }, []);
 
   const resultadosFiltrados = resultados.filter((r) => {
     if (filtroEstado !== "todos" && r.estado !== filtroEstado) return false;
@@ -135,7 +141,10 @@ export default function ValidacionExpediente() {
           </div>
 
           <div className="grid grid-cols-4 gap-4 mb-6">
-            <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+            <div
+              className={`bg-white rounded-xl shadow-sm p-4 border cursor-pointer hover:shadow-md transition ${filtroEstado === "todos" ? "border-blue-400" : "border-gray-100"}`}
+              onClick={() => setFiltroEstado("todos")}
+            >
               <p className="text-xs text-gray-400 mb-1">Total empleados</p>
               <p className="text-3xl font-bold text-gray-800">{resultados.length}</p>
             </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navigate } from "react-router-dom";
 import Header from "../../components/Header";
 import { isAdmin } from "../../utils/auth";
@@ -25,12 +25,15 @@ const parseError = (err: any): string => {
 
 type TabActiva = "expediente" | "academico";
 
+const CACHE_KEY = "cache_tipos_documento";
+const CACHE_TTL = 5 * 60 * 1000;
+
 export default function TipoExpediente() {
   if (!isAdmin()) return <Navigate to="/dashboard" replace />;
 
+  const cargado = useRef(false);
   const [tabActiva, setTabActiva] = useState<TabActiva>("expediente");
 
-  // Expediente
   const [tiposExp, setTiposExp] = useState<TipoDocumento[]>([]);
   const [loadingExp, setLoadingExp] = useState(true);
   const [mostrarModalExp, setMostrarModalExp] = useState(false);
@@ -39,7 +42,6 @@ export default function TipoExpediente() {
   const [guardandoExp, setGuardandoExp] = useState(false);
   const [errorExp, setErrorExp] = useState("");
 
-  // Académico
   const [tiposAcad, setTiposAcad] = useState<TipoDocAcademico[]>([]);
   const [loadingAcad, setLoadingAcad] = useState(true);
   const [mostrarModalAcad, setMostrarModalAcad] = useState(false);
@@ -56,43 +58,54 @@ export default function TipoExpediente() {
     Authorization: `Bearer ${token}`,
   };
 
-  const cargarTiposExp = () => {
-    setLoadingExp(true);
-    fetchWithFallback("/expediente/tipos", { headers })
-      .then((r) => r.json())
-      .then((d) => setTiposExp(Array.isArray(d) ? d : []))
-      .catch(() => setTiposExp([]))
-      .finally(() => setLoadingExp(false));
+  const limpiarCache = () => {
+    sessionStorage.removeItem(CACHE_KEY);       
+    sessionStorage.removeItem("dashboard_cache");  
   };
-
-  const cargarTiposAcad = () => {
+  const cargarTodos = async (forzar = false) => {
+    if (!forzar) {
+      const cache = sessionStorage.getItem(CACHE_KEY);
+      if (cache) {
+        const data = JSON.parse(cache);
+        if (Date.now() < data._expires) {
+          setTiposExp(data.tiposExp);
+          setTiposAcad(data.tiposAcad);
+          setLoadingExp(false);
+          setLoadingAcad(false);
+          return;
+        }
+        sessionStorage.removeItem(CACHE_KEY);
+      }
+    }
+    setLoadingExp(true);
     setLoadingAcad(true);
-    fetchWithFallback("/tipos-documento-academico", { headers })
-      .then((r) => r.json())
-      .then((d) => setTiposAcad(Array.isArray(d) ? d : []))
-      .catch(() => setTiposAcad([]))
-      .finally(() => setLoadingAcad(false));
+    Promise.all([
+      fetchWithFallback("/expediente/tipos", { headers }).then((r) => r.json()),
+      fetchWithFallback("/tipos-documento-academico", { headers }).then((r) => r.json()),
+    ])
+      .then(([exp, acad]) => {
+        const tiposExp = Array.isArray(exp) ? exp : [];
+        const tiposAcad = Array.isArray(acad) ? acad : [];
+        setTiposExp(tiposExp);
+        setTiposAcad(tiposAcad);
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+          _expires: Date.now() + CACHE_TTL,
+          tiposExp, tiposAcad,
+        }));
+      })
+      .catch(() => {})
+      .finally(() => { setLoadingExp(false); setLoadingAcad(false); });
   };
 
   useEffect(() => {
-    cargarTiposExp();
-    cargarTiposAcad();
+    if (cargado.current) return;
+    cargado.current = true;
+    cargarTodos();
   }, []);
 
   // ── Expediente CRUD ──
-  const abrirCrearExp = () => {
-    setEditandoExp(null);
-    setFormExp({ nombre: "", obligatorio: false });
-    setErrorExp("");
-    setMostrarModalExp(true);
-  };
-
-  const abrirEditarExp = (tipo: TipoDocumento) => {
-    setEditandoExp(tipo);
-    setFormExp({ nombre: tipo.nombre, obligatorio: tipo.obligatorio });
-    setErrorExp("");
-    setMostrarModalExp(true);
-  };
+  const abrirCrearExp = () => { setEditandoExp(null); setFormExp({ nombre: "", obligatorio: false }); setErrorExp(""); setMostrarModalExp(true); };
+  const abrirEditarExp = (tipo: TipoDocumento) => { setEditandoExp(tipo); setFormExp({ nombre: tipo.nombre, obligatorio: tipo.obligatorio }); setErrorExp(""); setMostrarModalExp(true); };
 
   const handleGuardarExp = async () => {
     if (!formExp.nombre.trim()) { setErrorExp("El nombre es obligatorio."); return; }
@@ -105,12 +118,10 @@ export default function TipoExpediente() {
         : await fetchWithFallback("/expediente/tipo", { method: "POST", headers, body: JSON.stringify(body) });
       if (!res.ok) { const err = await res.json(); throw new Error(parseError(err)); }
       setMostrarModalExp(false);
-      cargarTiposExp();
-    } catch (e: any) {
-      setErrorExp(e.message || "No se pudo guardar.");
-    } finally {
-      setGuardandoExp(false);
-    }
+      limpiarCache();
+      cargarTodos(true);
+    } catch (e: any) { setErrorExp(e.message || "No se pudo guardar."); }
+    finally { setGuardandoExp(false); }
   };
 
   const handleEliminarExp = async (tipo: TipoDocumento) => {
@@ -118,26 +129,14 @@ export default function TipoExpediente() {
     try {
       const res = await fetchWithFallback(`/expediente/tipo/${tipo.id_tipo}`, { method: "DELETE", headers });
       if (!res.ok) { const err = await res.json(); throw new Error(parseError(err)); }
-      cargarTiposExp();
-    } catch (e: any) {
-      alert(e.message || "No se pudo eliminar.");
-    }
+      limpiarCache();
+      cargarTodos(true);
+    } catch (e: any) { alert(e.message || "No se pudo eliminar."); }
   };
 
   // ── Académico CRUD ──
-  const abrirCrearAcad = () => {
-    setEditandoAcad(null);
-    setFormAcad({ nombre: "", obligatorio: false });
-    setErrorAcad("");
-    setMostrarModalAcad(true);
-  };
-
-  const abrirEditarAcad = (tipo: TipoDocAcademico) => {
-    setEditandoAcad(tipo);
-    setFormAcad({ nombre: tipo.nombre, obligatorio: tipo.obligatorio });
-    setErrorAcad("");
-    setMostrarModalAcad(true);
-  };
+  const abrirCrearAcad = () => { setEditandoAcad(null); setFormAcad({ nombre: "", obligatorio: false }); setErrorAcad(""); setMostrarModalAcad(true); };
+  const abrirEditarAcad = (tipo: TipoDocAcademico) => { setEditandoAcad(tipo); setFormAcad({ nombre: tipo.nombre, obligatorio: tipo.obligatorio }); setErrorAcad(""); setMostrarModalAcad(true); };
 
   const handleGuardarAcad = async () => {
     if (!formAcad.nombre.trim()) { setErrorAcad("El nombre es obligatorio."); return; }
@@ -150,12 +149,10 @@ export default function TipoExpediente() {
         : await fetchWithFallback("/tipos-documento-academico", { method: "POST", headers, body: JSON.stringify(body) });
       if (!res.ok) { const err = await res.json(); throw new Error(parseError(err)); }
       setMostrarModalAcad(false);
-      cargarTiposAcad();
-    } catch (e: any) {
-      setErrorAcad(e.message || "No se pudo guardar.");
-    } finally {
-      setGuardandoAcad(false);
-    }
+      limpiarCache();
+      cargarTodos(true);
+    } catch (e: any) { setErrorAcad(e.message || "No se pudo guardar."); }
+    finally { setGuardandoAcad(false); }
   };
 
   const handleEliminarAcad = async (tipo: TipoDocAcademico) => {
@@ -163,10 +160,9 @@ export default function TipoExpediente() {
     try {
       const res = await fetchWithFallback(`/tipos-documento-academico/${tipo.id_tipo_doc_academico}`, { method: "DELETE", headers });
       if (!res.ok) { const err = await res.json(); throw new Error(parseError(err)); }
-      cargarTiposAcad();
-    } catch (e: any) {
-      alert(e.message || "No se pudo eliminar.");
-    }
+      limpiarCache();
+      cargarTodos(true);
+    } catch (e: any) { alert(e.message || "No se pudo eliminar."); }
   };
 
   const TablaTipos = ({
@@ -267,11 +263,9 @@ export default function TipoExpediente() {
             </svg>
           </button>
         </div>
-
         {error && (
           <div className="mb-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-md px-4 py-3">{error}</div>
         )}
-
         <div className="flex flex-col gap-4 mb-5">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
@@ -298,7 +292,6 @@ export default function TipoExpediente() {
             </span>
           </label>
         </div>
-
         <div className="flex gap-3">
           <button onClick={onGuardar} disabled={guardando}
             className="flex-1 bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition font-medium disabled:opacity-60"
@@ -341,34 +334,34 @@ export default function TipoExpediente() {
           </button>
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-1 mb-6 bg-white rounded-xl shadow-sm p-1 w-fit">
           <button
             onClick={() => setTabActiva("expediente")}
-            className={`px-5 py-2 rounded-lg text-sm font-medium transition ${
-              tabActiva === "expediente" ? "bg-amber-500 text-white shadow-sm" : "text-gray-600 hover:bg-gray-50"
-            }`}
+            className={`px-5 py-2 rounded-lg text-sm font-medium transition ${tabActiva === "expediente" ? "bg-amber-500 text-white shadow-sm" : "text-gray-600 hover:bg-gray-50"}`}
           >
             Expediente
           </button>
           <button
             onClick={() => setTabActiva("academico")}
-            className={`px-5 py-2 rounded-lg text-sm font-medium transition ${
-              tabActiva === "academico" ? "bg-blue-600 text-white shadow-sm" : "text-gray-600 hover:bg-gray-50"
-            }`}
+            className={`px-5 py-2 rounded-lg text-sm font-medium transition ${tabActiva === "academico" ? "bg-blue-600 text-white shadow-sm" : "text-gray-600 hover:bg-gray-50"}`}
           >
             Académico
           </button>
         </div>
 
-        {/* Resumen */}
         <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className={`rounded-xl p-4 border ${tabActiva === "expediente" ? "border-amber-200 bg-amber-50" : "border-gray-100 bg-white"}`}>
+          <div
+            className={`rounded-xl p-4 border cursor-pointer hover:shadow-md transition ${tabActiva === "expediente" ? "border-amber-200 bg-amber-50" : "border-gray-100 bg-white"}`}
+            onClick={() => setTabActiva("expediente")}
+          >
             <p className="text-xs text-gray-500 mb-1">Tipos de Expediente</p>
             <p className="text-3xl font-bold text-amber-600">{tiposExp.length}</p>
             <p className="text-xs text-gray-400 mt-1">{tiposExp.filter((t) => t.obligatorio).length} obligatorio{tiposExp.filter((t) => t.obligatorio).length !== 1 ? "s" : ""}</p>
           </div>
-          <div className={`rounded-xl p-4 border ${tabActiva === "academico" ? "border-blue-200 bg-blue-50" : "border-gray-100 bg-white"}`}>
+          <div
+            className={`rounded-xl p-4 border cursor-pointer hover:shadow-md transition ${tabActiva === "academico" ? "border-blue-200 bg-blue-50" : "border-gray-100 bg-white"}`}
+            onClick={() => setTabActiva("academico")}
+          >
             <p className="text-xs text-gray-500 mb-1">Tipos Académicos</p>
             <p className="text-3xl font-bold text-blue-600">{tiposAcad.length}</p>
             <p className="text-xs text-gray-400 mt-1">{tiposAcad.filter((t) => t.obligatorio).length} obligatorio{tiposAcad.filter((t) => t.obligatorio).length !== 1 ? "s" : ""}</p>

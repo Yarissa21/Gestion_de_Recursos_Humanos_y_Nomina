@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navigate } from "react-router-dom";
 import Header from "../../components/Header";
-import { isAdminOrRH } from "../../utils/auth";import { fetchWithFallback } from "../../utils/api";
+import { isAdmin, isAdminOrRH } from "../../utils/auth";
+import { fetchWithFallback } from "../../utils/api";
 
 interface EmpleadoBasico {
   id_empleado: number;
@@ -18,7 +19,6 @@ interface TipoDocAcademico {
 interface DocumentoAcademico {
   id_doc_academico: number;
   nombre: string;
-  archivo: string;
   fecha_carga: string;
   id_academico: number;
   id_tipo_doc_academico: number;
@@ -32,7 +32,6 @@ interface InformacionAcademica {
   institucion: string;
   fecha_graduacion: string;
   id_empleado: number;
-  // El backend incluye el objeto empleado completo
   empleado: EmpleadoBasico;
 }
 
@@ -51,8 +50,17 @@ const emptyForm = {
   id_empleado: "",
 };
 
+const hoy = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000)
+  .toISOString().split("T")[0];
+
+const CACHE_KEY = "cache_academicos";
+const CACHE_TTL = 5 * 60 * 1000;
+
 export default function InformacionAcademica() {
   if (!isAdminOrRH()) return <Navigate to="/dashboard" replace />;
+
+  const cargado = useRef(false);
+
   const [empleados, setEmpleados] = useState<EmpleadoBasico[]>([]);
   const [academicos, setAcademicos] = useState<InformacionAcademica[]>([]);
   const [tiposDoc, setTiposDoc] = useState<TipoDocAcademico[]>([]);
@@ -77,6 +85,8 @@ export default function InformacionAcademica() {
   const [errorDoc, setErrorDoc] = useState("");
 
   const [previstaDoc, setPrevistaDoc] = useState<DocumentoAcademico | null>(null);
+  const [archivoPrevia, setArchivoPrevia] = useState<string | null>(null);
+  const [cargandoPrevia, setCargandoPrevia] = useState(false);
 
   const nombre = localStorage.getItem("nombre") || "Usuario";
   const rol = localStorage.getItem("rol")?.toLowerCase() || "sin rol";
@@ -84,7 +94,35 @@ export default function InformacionAcademica() {
   const id_usuario = localStorage.getItem("id_usuario") || "1";
   const headers = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
 
-  const cargarDatos = () => {
+  const LOCAL = "http://localhost:3000";
+  const REMOTE = "https://gestion-de-recursos-humanos-y-nomina.onrender.com";
+
+  const getBase = async () => {
+    try {
+      await fetch(`${LOCAL}/health`, { signal: AbortSignal.timeout(2000) });
+      return LOCAL;
+    } catch { return REMOTE; }
+  };
+
+  const limpiarCache = () => {
+    sessionStorage.removeItem(CACHE_KEY);       
+    sessionStorage.removeItem("dashboard_cache");  
+  };
+  const cargarDatos = async (forzar = false) => {
+    if (!forzar) {
+      const cache = sessionStorage.getItem(CACHE_KEY);
+      if (cache) {
+        const data = JSON.parse(cache);
+        if (Date.now() < data._expires) {
+          setEmpleados(data.empleados);
+          setAcademicos(data.academicos);
+          setTiposDoc(data.tiposDoc);
+          setLoading(false);
+          return;
+        }
+        sessionStorage.removeItem(CACHE_KEY);
+      }
+    }
     setLoading(true);
     Promise.all([
       fetchWithFallback("/empleados", { headers }).then((r) => r.json()),
@@ -92,23 +130,32 @@ export default function InformacionAcademica() {
       fetchWithFallback("/tipos-documento-academico", { headers }).then((r) => r.json()),
     ])
       .then(([emps, acads, tipos]) => {
-        setEmpleados(Array.isArray(emps) ? emps : []);
-        setAcademicos(Array.isArray(acads) ? acads : []);
-        setTiposDoc(Array.isArray(tipos) ? tipos : []);
+        const empleados = Array.isArray(emps) ? emps : [];
+        const academicos = Array.isArray(acads) ? acads : [];
+        const tiposDoc = Array.isArray(tipos) ? tipos : [];
+        setEmpleados(empleados);
+        setAcademicos(academicos);
+        setTiposDoc(tiposDoc);
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+          _expires: Date.now() + CACHE_TTL,
+          empleados, academicos, tiposDoc,
+        }));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { cargarDatos(); }, []);
+  useEffect(() => {
+    if (cargado.current) return;
+    cargado.current = true;
+    cargarDatos();
+  }, []);
 
-  // Carga documentos del académico activo filtrando por id_academico
   const cargarDocsAcademico = async (id_academico: number) => {
     setLoadingDocs(true);
     try {
       const res = await fetchWithFallback("/academicos/documentos", { headers });
       const data = await res.json();
-      // Filtra por id_academico — el campo viene en la raíz del documento
       const docs = Array.isArray(data)
         ? data.filter((d: any) => Number(d.id_academico) === Number(id_academico))
         : [];
@@ -120,12 +167,8 @@ export default function InformacionAcademica() {
     }
   };
 
-  // Usa el empleado incluido en el response del backend directamente
   const getNombreEmp = (ac: InformacionAcademica): string => {
-    if (ac.empleado) {
-      return `${ac.empleado.nombre_empleado} ${ac.empleado.apellido_empleado}`;
-    }
-    // Fallback: buscar en el array local
+    if (ac.empleado) return `${ac.empleado.nombre_empleado} ${ac.empleado.apellido_empleado}`;
     const emp = empleados.find((e) => e.id_empleado === ac.id_empleado);
     return emp ? `${emp.nombre_empleado} ${emp.apellido_empleado}` : "—";
   };
@@ -150,6 +193,10 @@ export default function InformacionAcademica() {
       setErrorGlobal("Todos los campos son obligatorios.");
       return;
     }
+    if (form.fecha_graduacion > hoy) {
+      setErrorGlobal("La fecha de graduación no puede ser futura.");
+      return;
+    }
     setGuardando(true);
     setErrorGlobal("");
     try {
@@ -165,7 +212,8 @@ export default function InformacionAcademica() {
         : await fetchWithFallback("/academicos", { method: "POST", headers, body: JSON.stringify(body) });
       if (!res.ok) { const err = await res.json(); throw new Error(parseError(err)); }
       setMostrarModal(false);
-      cargarDatos();
+      limpiarCache();
+      cargarDatos(true);
     } catch (e: any) {
       setErrorGlobal(e.message || "No se pudo guardar.");
     } finally {
@@ -178,7 +226,8 @@ export default function InformacionAcademica() {
     try {
       const res = await fetchWithFallback(`/academicos/academico/${ac.id_academico}/${ac.id_empleado}`, { method: "DELETE", headers });
       if (!res.ok) { const err = await res.json(); throw new Error(parseError(err)); }
-      cargarDatos();
+      limpiarCache();
+      cargarDatos(true);
     } catch (e: any) { alert(e.message || "No se pudo eliminar."); }
   };
 
@@ -202,7 +251,6 @@ export default function InformacionAcademica() {
 
   const handleGuardarDoc = async () => {
     if (!academicoActivo) return;
-
     if (modalDoc?.modo === "crear") {
       if (!archivoDoc || !modalDoc.tipoId) { setErrorDoc("Selecciona un archivo."); return; }
       setSubiendoDoc(true);
@@ -210,7 +258,6 @@ export default function InformacionAcademica() {
       try {
         const fd = new FormData();
         fd.append("file", archivoDoc);
-        // Enviar el id_academico del académico activo
         fd.append("id_academico", String(academicoActivo.id_academico));
         fd.append("id_tipo_doc_academico", String(modalDoc.tipoId));
         fd.append("id_usuario", id_usuario);
@@ -224,13 +271,17 @@ export default function InformacionAcademica() {
         await cargarDocsAcademico(academicoActivo.id_academico);
       } catch (e: any) { setErrorDoc(e.message || "No se pudo subir."); }
       finally { setSubiendoDoc(false); }
-
     } else if (modalDoc?.modo === "editar" && modalDoc.doc) {
+      if (!nuevoNombreDoc.trim()) { setErrorDoc("El nombre es obligatorio."); return; }
       setSubiendoDoc(true);
       setErrorDoc("");
       try {
+        const base = nuevoNombreDoc.trim().toLowerCase().endsWith(".pdf")
+          ? nuevoNombreDoc.trim().slice(0, -4)
+          : nuevoNombreDoc.trim();
+        const nombreFinal = `${base}.pdf`;
         const fd = new FormData();
-        if (nuevoNombreDoc.trim()) fd.append("nombre", nuevoNombreDoc.trim());
+        fd.append("nombre", nombreFinal);
         if (archivoDoc) fd.append("file", archivoDoc);
         const res = await fetchWithFallback(`/academicos/documento/${modalDoc.doc.id_doc_academico}`, {
           method: "PUT",
@@ -255,14 +306,45 @@ export default function InformacionAcademica() {
   };
 
   const handleDescargarDoc = async (doc: DocumentoAcademico) => {
-    const LOCAL = "http://localhost:3000";
-    const REMOTE = "https://gestion-de-recursos-humanos-y-nomina.onrender.com";
-    let base = LOCAL;
-    try { await fetch(`${LOCAL}/departamentos`, { signal: AbortSignal.timeout(2000) }); } catch { base = REMOTE; }
+    const base = await getBase();
+    const res = await fetch(`${base}/academicos/documento/${doc.id_doc_academico}/archivo?download=true`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = `${base}/academicos/documento/${doc.id_doc_academico}/archivo?download=true`;
+    a.href = url;
     a.download = doc.nombre;
     a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  };
+
+  const abrirPrevia = async (doc: DocumentoAcademico) => {
+    setPrevistaDoc(doc);
+    setArchivoPrevia(null);
+    setCargandoPrevia(true);
+    try {
+      const base = await getBase();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      const res = await fetch(`${base}/academicos/documento/${doc.id_doc_academico}/archivo`, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      const blob = await res.blob();
+      setArchivoPrevia(URL.createObjectURL(blob));
+    } catch {
+      setArchivoPrevia("error");
+    } finally {
+      setCargandoPrevia(false);
+    }
+  };
+
+  const cerrarPrevia = () => {
+    if (archivoPrevia && archivoPrevia !== "error") URL.revokeObjectURL(archivoPrevia);
+    setPrevistaDoc(null);
+    setArchivoPrevia(null);
   };
 
   const academicosFiltrados = academicos.filter((ac) => {
@@ -293,7 +375,7 @@ export default function InformacionAcademica() {
             <div className="flex items-center gap-3">
               <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path d="M12 14l9-5-9-5-9 5 9 5z" />
-                <path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+                <path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
               </svg>
               <h1 className="text-3xl font-bold">Información Académica</h1>
             </div>
@@ -379,14 +461,16 @@ export default function InformacionAcademica() {
                               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                             </svg>
                           </button>
-                          <button onClick={() => handleEliminar(ac)} className="text-gray-400 hover:text-red-600 transition p-1.5 rounded-md hover:bg-red-50">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <polyline points="3 6 5 6 21 6" />
-                              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                              <path d="M10 11v6" /><path d="M14 11v6" />
-                              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                            </svg>
-                          </button>
+                          {isAdmin() && (
+                            <button onClick={() => handleEliminar(ac)} className="text-gray-400 hover:text-red-600 transition p-1.5 rounded-md hover:bg-red-50">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <polyline points="3 6 5 6 21 6" />
+                                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                                <path d="M10 11v6" /><path d="M14 11v6" />
+                                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                              </svg>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -418,13 +502,12 @@ export default function InformacionAcademica() {
                   className="border border-gray-300 rounded-md w-full p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   disabled={!!editando}
                 >
-                    <option value="">Seleccionar empleado</option>
-                    {empleados
+                  <option value="">Seleccionar empleado</option>
+                  {empleados
                     .filter((emp) => !academicos.some((ac) => ac.id_empleado === emp.id_empleado))
                     .map((emp) => (
-                        <option key={emp.id_empleado} value={emp.id_empleado}>{emp.nombre_empleado} {emp.apellido_empleado}</option>
-                    ))
-                    }
+                      <option key={emp.id_empleado} value={emp.id_empleado}>{emp.nombre_empleado} {emp.apellido_empleado}</option>
+                    ))}
                 </select>
               </div>
               <div>
@@ -450,7 +533,7 @@ export default function InformacionAcademica() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Graduación</label>
-                <input type="date" value={form.fecha_graduacion}
+                <input type="date" value={form.fecha_graduacion} max={hoy}
                   onChange={(e) => setForm((p) => ({ ...p, fecha_graduacion: e.target.value }))}
                   className="border border-gray-300 rounded-md w-full p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
@@ -462,9 +545,7 @@ export default function InformacionAcademica() {
               >
                 {guardando ? "Guardando..." : editando ? "Actualizar" : "Crear"}
               </button>
-              <button onClick={() => setMostrarModal(false)}
-                className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-md hover:bg-gray-200 transition font-medium"
-              >
+              <button onClick={() => setMostrarModal(false)} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-md hover:bg-gray-200 transition font-medium">
                 Cancelar
               </button>
             </div>
@@ -487,7 +568,6 @@ export default function InformacionAcademica() {
                 </svg>
               </button>
             </div>
-
             {loadingDocs ? (
               <p className="text-gray-400 text-center py-6">Cargando...</p>
             ) : (
@@ -513,7 +593,7 @@ export default function InformacionAcademica() {
                       <div className="flex items-center gap-1 shrink-0 ml-3">
                         {docExistente ? (
                           <>
-                            <button onClick={() => setPrevistaDoc(docExistente)} className="text-gray-400 hover:text-blue-600 transition p-1.5 rounded-md hover:bg-blue-50" title="Vista previa">
+                            <button onClick={() => abrirPrevia(docExistente)} className="text-gray-400 hover:text-blue-600 transition p-1.5 rounded-md hover:bg-blue-50" title="Vista previa">
                               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
                               </svg>
@@ -531,14 +611,16 @@ export default function InformacionAcademica() {
                                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                               </svg>
                             </button>
-                            <button onClick={() => handleEliminarDoc(docExistente)} className="text-gray-400 hover:text-red-600 transition p-1.5 rounded-md hover:bg-red-50" title="Eliminar">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <polyline points="3 6 5 6 21 6" />
-                                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                                <path d="M10 11v6" /><path d="M14 11v6" />
-                                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                              </svg>
-                            </button>
+                            {isAdmin() && (
+                              <button onClick={() => handleEliminarDoc(docExistente)} className="text-gray-400 hover:text-red-600 transition p-1.5 rounded-md hover:bg-red-50" title="Eliminar">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <polyline points="3 6 5 6 21 6" />
+                                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                                  <path d="M10 11v6" /><path d="M14 11v6" />
+                                  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                                </svg>
+                              </button>
+                            )}
                           </>
                         ) : (
                           <button onClick={() => abrirSubirDoc(tipo.id_tipo_doc_academico)}
@@ -580,6 +662,7 @@ export default function InformacionAcademica() {
                   onChange={(e) => setNuevoNombreDoc(e.target.value)}
                   className="border border-gray-300 rounded-md w-full p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+                <p className="text-xs text-gray-400 mt-1">Se agregará .pdf automáticamente si no lo incluyes</p>
               </div>
             )}
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -618,9 +701,7 @@ export default function InformacionAcademica() {
               >
                 {subiendoDoc ? "Guardando..." : modalDoc.modo === "crear" ? "Subir" : "Guardar"}
               </button>
-              <button onClick={() => setModalDoc(null)}
-                className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-md hover:bg-gray-200 transition font-medium"
-              >
+              <button onClick={() => setModalDoc(null)} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-md hover:bg-gray-200 transition font-medium">
                 Cancelar
               </button>
             </div>
@@ -633,15 +714,54 @@ export default function InformacionAcademica() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-70 px-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl h-[80vh] flex flex-col">
             <div className="flex items-center justify-between px-5 py-3 border-b">
-              <p className="font-semibold text-sm">{previstaDoc.nombre}</p>
-              <button onClick={() => setPrevistaDoc(null)} className="text-gray-400 hover:text-gray-600 p-1 rounded-md hover:bg-gray-100">
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
+              <div>
+                <p className="font-semibold text-sm">{previstaDoc.nombre}</p>
+                <p className="text-xs text-gray-400">{previstaDoc.tipo_doc?.nombre}</p>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => handleDescargarDoc(previstaDoc)}
+                  className="flex items-center gap-1 text-xs text-green-600 hover:text-green-800 font-medium transition px-3 py-1.5 rounded-md hover:bg-green-50"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  Descargar
+                </button>
+                <button onClick={cerrarPrevia} className="text-gray-400 hover:text-gray-600 transition p-1 rounded-md hover:bg-gray-100">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
             </div>
             <div className="flex-1 overflow-hidden">
-              <iframe src={`data:application/pdf;base64,${previstaDoc.archivo}`} className="w-full h-full rounded-b-xl" title="Vista previa" />
+              {cargandoPrevia ? (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-gray-400 text-sm">Cargando documento...</p>
+                </div>
+              ) : archivoPrevia === "error" ? (
+                <div className="flex flex-col items-center justify-center h-full gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                  </svg>
+                  <p className="text-gray-500 text-sm font-medium">No se puede mostrar la vista previa</p>
+                  <p className="text-gray-400 text-xs">El archivo es muy grande o tardó demasiado en cargar</p>
+                  <button onClick={() => handleDescargarDoc(previstaDoc)}
+                    className="mt-2 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium px-3 py-1.5 rounded-md hover:bg-blue-50 transition"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    Descargar en su lugar
+                  </button>
+                </div>
+              ) : archivoPrevia ? (
+                <iframe src={archivoPrevia} className="w-full h-full rounded-b-xl" title="Vista previa" />
+              ) : null}
             </div>
           </div>
         </div>

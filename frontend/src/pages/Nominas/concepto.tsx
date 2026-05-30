@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navigate } from "react-router-dom";
 import Header from "../../components/Header";
 import { isAdmin } from "../../utils/auth";
@@ -35,8 +35,13 @@ const emptyForm = {
   fecha_aplica: "",
 };
 
+const CACHE_KEY = "cache_conceptos";
+const CACHE_TTL = 5 * 60 * 1000;
+
 export default function ConceptosNomina() {
   if (!isAdmin()) return <Navigate to="/dashboard" replace />;
+
+  const cargado = useRef(false);
 
   const [conceptos, setConceptos] = useState<Concepto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,16 +63,43 @@ export default function ConceptosNomina() {
     Authorization: `Bearer ${token}`,
   };
 
-  const cargar = () => {
+  const limpiarCache = () => {
+    sessionStorage.removeItem(CACHE_KEY);       
+    sessionStorage.removeItem("dashboard_cache");  
+  };
+  const cargar = async (forzar = false) => {
+    if (!forzar) {
+      const cache = sessionStorage.getItem(CACHE_KEY);
+      if (cache) {
+        const data = JSON.parse(cache);
+        if (Date.now() < data._expires) {
+          setConceptos(data.conceptos);
+          setLoading(false);
+          return;
+        }
+        sessionStorage.removeItem(CACHE_KEY);
+      }
+    }
     setLoading(true);
     fetchWithFallback("/conceptos", { headers })
       .then((r) => r.json())
-      .then((d) => setConceptos(Array.isArray(d) ? d : []))
+      .then((d) => {
+        const conceptos = Array.isArray(d) ? d : [];
+        setConceptos(conceptos);
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+          _expires: Date.now() + CACHE_TTL,
+          conceptos,
+        }));
+      })
       .catch(() => setConceptos([]))
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { cargar(); }, []);
+  useEffect(() => {
+    if (cargado.current) return;
+    cargado.current = true;
+    cargar();
+  }, []);
 
   const TIPOS_FIJOS = ["Bonificacion", "Comision", "Deduccion", "Descuento"];
 
@@ -84,7 +116,6 @@ export default function ConceptosNomina() {
     const e: Record<string, string> = {};
     if (!form.nombre.trim()) e.nombre = "El nombre es obligatorio";
     if (!form.tipo.trim()) e.tipo = "El tipo es obligatorio";
-
     const camposLlenos = [form.porcentaje.trim(), form.monto_fijo.trim(), form.fecha_aplica.trim()].filter(Boolean).length;
     if (camposLlenos > 1) {
       e.porcentaje = "Solo puedes usar uno: porcentaje, monto fijo o fecha de aplicación";
@@ -96,7 +127,6 @@ export default function ConceptosNomina() {
         e.monto_fijo = "Debe ser un número positivo";
       }
     }
-
     setErrores(e);
     return Object.keys(e).length === 0;
   };
@@ -149,7 +179,8 @@ export default function ConceptosNomina() {
 
       if (!res.ok) { const err = await res.json(); throw new Error(parseError(err)); }
       setMostrarModal(false);
-      cargar();
+      limpiarCache();
+      cargar(true);
     } catch (e: any) {
       setErrorGlobal(e.message || "No se pudo guardar.");
     } finally {
@@ -162,7 +193,8 @@ export default function ConceptosNomina() {
     try {
       const res = await fetchWithFallback(`/conceptos/${c.id_concepto}`, { method: "DELETE", headers });
       if (!res.ok) { const err = await res.json(); throw new Error(parseError(err)); }
-      cargar();
+      limpiarCache();
+      cargar(true);
     } catch (e: any) {
       alert(e.message || "No se pudo eliminar.");
     }
@@ -211,19 +243,13 @@ export default function ConceptosNomina() {
             <div className="bg-white rounded-xl shadow-sm p-4 border border-green-100">
               <p className="text-xs text-gray-400 mb-1">Bonificaciones / Comisiones</p>
               <p className="text-3xl font-bold text-green-600">
-                {conceptos.filter((c) => {
-                  const t = c.tipo.toLowerCase();
-                  return t === "bonificacion" || t === "comision";
-                }).length}
+                {conceptos.filter((c) => { const t = c.tipo.toLowerCase(); return t === "bonificacion" || t === "comision"; }).length}
               </p>
             </div>
             <div className="bg-white rounded-xl shadow-sm p-4 border border-red-100">
               <p className="text-xs text-gray-400 mb-1">Deducciones / Descuentos</p>
               <p className="text-3xl font-bold text-red-600">
-                {conceptos.filter((c) => {
-                  const t = c.tipo.toLowerCase();
-                  return t === "deduccion" || t === "descuento";
-                }).length}
+                {conceptos.filter((c) => { const t = c.tipo.toLowerCase(); return t === "deduccion" || t === "descuento"; }).length}
               </p>
             </div>
           </div>
@@ -287,9 +313,7 @@ export default function ConceptosNomina() {
                     <tr key={c.id_concepto} className="border-t hover:bg-gray-50 transition">
                       <td className="p-4 font-medium text-sm">{c.nombre}</td>
                       <td className="p-4">
-                        <span className={`text-xs font-medium px-2 py-1 rounded-full ${tipoBadge(c.tipo)}`}>
-                          {c.tipo}
-                        </span>
+                        <span className={`text-xs font-medium px-2 py-1 rounded-full ${tipoBadge(c.tipo)}`}>{c.tipo}</span>
                       </td>
                       <td className="p-4 text-sm text-gray-600">
                         {c.porcentaje != null ? `${c.porcentaje}%` : "—"}
@@ -369,12 +393,10 @@ export default function ConceptosNomina() {
 
               <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
                 <p className="text-xs text-gray-400 mb-3">Selecciona solo uno de los siguientes</p>
-
                 <div className="flex flex-col gap-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Porcentaje
-                      <span className="text-gray-400 font-normal ml-1">(opcional)</span>
+                      Porcentaje <span className="text-gray-400 font-normal ml-1">(opcional)</span>
                     </label>
                     <div className="relative">
                       <input type="number" placeholder="0" min="0" step="0.01"
@@ -396,8 +418,7 @@ export default function ConceptosNomina() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Monto Fijo
-                      <span className="text-gray-400 font-normal ml-1">(opcional)</span>
+                      Monto Fijo <span className="text-gray-400 font-normal ml-1">(opcional)</span>
                     </label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-medium">Q</span>
@@ -419,8 +440,7 @@ export default function ConceptosNomina() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Fecha de Aplicación
-                      <span className="text-gray-400 font-normal ml-1">(opcional)</span>
+                      Fecha de Aplicación <span className="text-gray-400 font-normal ml-1">(opcional)</span>
                     </label>
                     <input type="date"
                       value={form.fecha_aplica}

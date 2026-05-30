@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import Header from "../../components/Header";
 import { isAdmin } from "../../utils/auth";
@@ -16,6 +16,104 @@ interface Puesto {
   departamento: Departamento;
 }
 
+function SearchSelect({
+  options,
+  value,
+  onChange,
+  placeholder,
+  labelKey,
+  valueKey,
+  disabled = false,
+}: {
+  options: any[];
+  value: number | "";
+  onChange: (v: number | "") => void;
+  placeholder: string;
+  labelKey: (o: any) => string;
+  valueKey: (o: any) => number;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busq, setBusq] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+  const mostrarBusqueda = options.length > 5;
+
+  const filtrados = busq.trim()
+    ? options.filter((o) => labelKey(o).toLowerCase().includes(busq.toLowerCase()))
+    : options;
+
+  const seleccionado = options.find((o) => valueKey(o) === value);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setBusq("");
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative w-full">
+      <button
+        type="button"
+        onClick={() => { if (!disabled) setOpen(!open); }}
+        className={`w-full border rounded-md px-3 py-2 text-sm text-left flex items-center justify-between gap-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+          disabled ? "bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed" : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
+        }`}
+      >
+        <span className="truncate">
+          {seleccionado ? labelKey(seleccionado) : placeholder}
+        </span>
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
+          {mostrarBusqueda && (
+            <div className="p-2 border-b border-gray-100">
+              <input
+                autoFocus
+                type="text"
+                placeholder="Buscar..."
+                value={busq}
+                onChange={(e) => setBusq(e.target.value)}
+                className="w-full border border-gray-200 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+              />
+            </div>
+          )}
+          <ul className="max-h-48 overflow-y-auto py-1">
+            <li
+              onClick={() => { onChange(""); setOpen(false); setBusq(""); }}
+              className="px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 cursor-pointer"
+            >
+              {placeholder}
+            </li>
+            {filtrados.length === 0 ? (
+              <li className="px-3 py-2 text-sm text-gray-400">Sin resultados</li>
+            ) : filtrados.map((o) => (
+              <li
+                key={valueKey(o)}
+                onClick={() => { onChange(valueKey(o)); setOpen(false); setBusq(""); }}
+                className={`px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 hover:text-blue-700 ${value === valueKey(o) ? "bg-blue-50 text-blue-700 font-medium" : "text-gray-700"}`}
+              >
+                {labelKey(o)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const CACHE_KEY = "cache_puestos";
+const CACHE_TTL = 5 * 60 * 1000;
+
 export default function Puestos() {
   if (!isAdmin()) return <Navigate to="/dashboard" replace />;
 
@@ -23,6 +121,7 @@ export default function Puestos() {
   const [searchParams] = useSearchParams();
   const depIdParam = searchParams.get("dep");
   const depNombreParam = searchParams.get("nombre") || "";
+  const cargado = useRef(false);
 
   const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
   const [puestos, setPuestos] = useState<Puesto[]>([]);
@@ -45,25 +144,48 @@ export default function Puestos() {
     Authorization: `Bearer ${token}`,
   };
 
-  const cargarDepartamentos = () => {
-    fetchWithFallback("/departamentos", { headers })
-      .then((r) => r.json())
-      .then((d) => setDepartamentos(Array.isArray(d) ? d : []))
-      .catch(() => setDepartamentos([]));
+  const limpiarCache = () => {
+    sessionStorage.removeItem(CACHE_KEY);
+    sessionStorage.removeItem("dashboard_cache");
   };
 
-  const cargarPuestos = () => {
+  const cargarDatos = async (forzar = false) => {
+    if (!forzar) {
+      const cache = sessionStorage.getItem(CACHE_KEY);
+      if (cache) {
+        const data = JSON.parse(cache);
+        if (Date.now() < data._expires) {
+          setDepartamentos(data.departamentos);
+          setPuestos(data.puestos);
+          setLoading(false);
+          return;
+        }
+        sessionStorage.removeItem(CACHE_KEY);
+      }
+    }
     setLoading(true);
-    fetchWithFallback("/puestos", { headers })
-      .then((r) => r.json())
-      .then((d) => setPuestos(Array.isArray(d) ? d.filter((p: Puesto) => !p.eliminado) : []))
-      .catch(() => setPuestos([]))
+    Promise.all([
+      fetchWithFallback("/departamentos", { headers }).then((r) => r.json()),
+      fetchWithFallback("/puestos", { headers }).then((r) => r.json()),
+    ])
+      .then(([deps, psts]) => {
+        const departamentos = Array.isArray(deps) ? deps : [];
+        const puestos = Array.isArray(psts) ? psts.filter((p: Puesto) => !p.eliminado) : [];
+        setDepartamentos(departamentos);
+        setPuestos(puestos);
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+          _expires: Date.now() + CACHE_TTL,
+          departamentos, puestos,
+        }));
+      })
+      .catch(() => {})
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
-    cargarDepartamentos();
-    cargarPuestos();
+    if (cargado.current) return;
+    cargado.current = true;
+    cargarDatos();
   }, []);
 
   const abrirCrear = () => {
@@ -94,21 +216,27 @@ export default function Puestos() {
     }
     setGuardando(true);
     try {
-      if (modalEditar) {
-        await fetchWithFallback(`/puestos/${modalEditar.id_puesto}`, {
-          method: "PUT",
-          headers,
-          body: JSON.stringify({ nombre_puesto: nombrePuesto.trim(), id_departamento: depPuesto }),
-        });
-      } else {
-        await fetchWithFallback("/puestos", {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ nombre_puesto: nombrePuesto.trim(), id_departamento: depPuesto }),
-        });
+      const res = modalEditar
+        ? await fetchWithFallback(`/puestos/${modalEditar.id_puesto}`, {
+            method: "PUT",
+            headers,
+            body: JSON.stringify({ nombre_puesto: nombrePuesto.trim(), id_departamento: depPuesto }),
+          })
+        : await fetchWithFallback("/puestos", {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ nombre_puesto: nombrePuesto.trim(), id_departamento: depPuesto }),
+          });
+
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err?.message || "No se pudo guardar el puesto.");
+        return;
       }
+
       cerrarModal();
-      cargarPuestos();
+      limpiarCache();
+      cargarDatos(true);
     } catch {
       alert("No se pudo guardar el puesto.");
     } finally {
@@ -119,14 +247,19 @@ export default function Puestos() {
   const handleEliminar = async (id: number) => {
     if (!confirm("¿Eliminar este puesto?")) return;
     try {
-      await fetchWithFallback(`/puestos/${id}`, { method: "DELETE", headers });
-      cargarPuestos();
+      const res = await fetchWithFallback(`/puestos/${id}`, { method: "DELETE", headers });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err?.message || "No se pudo eliminar.");
+        return;
+      }
+      limpiarCache();
+      cargarDatos(true);
     } catch {
       alert("No se pudo eliminar.");
     }
   };
 
-  // Agrupar puestos por departamento
   const puestosFiltrados = depSeleccionado === "todos"
     ? puestos
     : puestos.filter((p) => p.departamento.id_departamento === depSeleccionado);
@@ -156,7 +289,6 @@ export default function Puestos() {
 
       <main className="max-w-6xl mx-auto px-6 mt-10">
 
-        {/* Título */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <button
@@ -190,7 +322,6 @@ export default function Puestos() {
           </button>
         </div>
 
-        {/* Filtro por departamento */}
         <div className="flex items-center gap-2 mb-6 flex-wrap">
           <button
             onClick={() => setDepSeleccionado("todos")}
@@ -219,7 +350,6 @@ export default function Puestos() {
           })}
         </div>
 
-        {/* Contenido */}
         {loading ? (
           <p className="text-gray-400 text-center py-10">Cargando...</p>
         ) : Object.keys(puestosPorDep).length === 0 ? (
@@ -243,7 +373,6 @@ export default function Puestos() {
               ];
               return (
                 <div key={dep.id_departamento} className={`bg-white rounded-xl shadow-sm overflow-hidden border ${color.border}`}>
-                  {/* Header del área */}
                   <div className={`${color.headerBg} px-5 py-3 flex items-center justify-between`}>
                     <div className="flex items-center gap-2">
                       <span className={`w-2.5 h-2.5 rounded-full ${color.dot}`} />
@@ -251,13 +380,13 @@ export default function Puestos() {
                       <span className={`text-xs ${color.text} opacity-70`}>({lista.length} puesto{lista.length !== 1 ? "s" : ""})</span>
                     </div>
                     <button
-                    onClick={() => {
+                      onClick={() => {
                         setModalEditar(null);
                         setNombrePuesto("");
                         setDepPuesto(dep.id_departamento);
                         setMostrarModal(true);
-                    }}
-                    className={`text-xs ${color.text} hover:opacity-80 font-medium flex items-center gap-1 transition`}
+                      }}
+                      className={`text-xs ${color.text} hover:opacity-80 font-medium flex items-center gap-1 transition`}
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
@@ -266,9 +395,8 @@ export default function Puestos() {
                     </button>
                   </div>
 
-                  {/* Lista de puestos */}
                   {lista.length === 0 ? (
-                    <p className="text-gray-400 text-sm text-center py-6">Sin puestos en esta área</p>
+                    <p className="text-gray-400 text-sm text-center py-6">Sin puestos en este departamento</p>
                   ) : (
                     <ul className="divide-y divide-gray-50">
                       {lista.map((puesto) => (
@@ -281,21 +409,13 @@ export default function Puestos() {
                             <span className="text-sm font-medium text-gray-700">{puesto.nombre_puesto}</span>
                           </div>
                           <div className="flex gap-1">
-                            <button
-                              onClick={() => abrirEditar(puesto)}
-                              className="text-gray-400 hover:text-blue-600 transition p-1.5 rounded-md hover:bg-blue-50"
-                              title="Editar"
-                            >
+                            <button onClick={() => abrirEditar(puesto)} className="text-gray-400 hover:text-blue-600 transition p-1.5 rounded-md hover:bg-blue-50" title="Editar">
                               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                               </svg>
                             </button>
-                            <button
-                              onClick={() => handleEliminar(puesto.id_puesto)}
-                              className="text-gray-400 hover:text-red-600 transition p-1.5 rounded-md hover:bg-red-50"
-                              title="Eliminar"
-                            >
+                            <button onClick={() => handleEliminar(puesto.id_puesto)} className="text-gray-400 hover:text-red-600 transition p-1.5 rounded-md hover:bg-red-50" title="Eliminar">
                               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <polyline points="3 6 5 6 21 6" />
                                 <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
@@ -315,14 +435,11 @@ export default function Puestos() {
         )}
       </main>
 
-      {/* Modal crear/editar puesto */}
       {mostrarModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm">
             <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-semibold">
-                {modalEditar ? "Editar Puesto" : "Nuevo Puesto"}
-              </h3>
+              <h3 className="text-lg font-semibold">{modalEditar ? "Editar Puesto" : "Nuevo Puesto"}</h3>
               <button onClick={cerrarModal} className="text-gray-400 hover:text-gray-600 transition">
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -342,18 +459,16 @@ export default function Puestos() {
             />
 
             <label className="block text-sm font-medium text-gray-700 mb-1">Departamento</label>
-            <select
-              value={depPuesto}
-              onChange={(e) => setDepPuesto(Number(e.target.value))}
-              className="border border-gray-300 rounded-md w-full p-2 mb-6 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
-            >
-              <option value="">Seleccionar departamento</option>
-              {departamentos.map((dep) => (
-                <option key={dep.id_departamento} value={dep.id_departamento}>
-                  {dep.nombre_departamento}
-                </option>
-              ))}
-            </select>
+            <div className="mb-6">
+              <SearchSelect
+                options={departamentos}
+                value={depPuesto}
+                onChange={(v) => setDepPuesto(v === "" ? "" : Number(v))}
+                placeholder="Seleccionar departamento"
+                labelKey={(dep) => dep.nombre_departamento}
+                valueKey={(dep) => dep.id_departamento}
+              />
+            </div>
 
             <div className="flex gap-3">
               <button

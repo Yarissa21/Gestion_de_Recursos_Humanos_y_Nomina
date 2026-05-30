@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import Header from "../../components/Header";
-import { isAdminOrRH } from "../../utils/auth";
+import { isAdmin, isAdminOrRH } from "../../utils/auth";
 import { fetchWithFallback } from "../../utils/api";
 
 interface Usuario {
@@ -60,6 +60,7 @@ const getId = (doc: Documento) =>
 export default function Documentos() {
   if (!isAdminOrRH()) return <Navigate to="/dashboard" replace />;
   const navigate = useNavigate();
+  const cargado = useRef(false);
 
   const [documentos, setDocumentos] = useState<Documento[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,10 +80,7 @@ export default function Documentos() {
   const nombre = localStorage.getItem("nombre") || "Usuario";
   const rol = localStorage.getItem("rol")?.toLowerCase() || "sin rol";
   const token = localStorage.getItem("token");
-  const headers = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
+  const headers = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
 
   const LOCAL = "http://localhost:3000";
   const REMOTE = "https://gestion-de-recursos-humanos-y-nomina.onrender.com";
@@ -94,7 +92,8 @@ export default function Documentos() {
     } catch { return REMOTE; }
   };
 
-  const cargarDocumentos = () => {
+  const cargarDocumentos = async (forzar = false) => {
+    if (!forzar && cargado.current) return;
     setLoading(true);
     Promise.all([
       fetchWithFallback("/expediente/documentos", { headers }).then((r) => r.json()),
@@ -117,7 +116,11 @@ export default function Documentos() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { cargarDocumentos(); }, []);
+  useEffect(() => {
+    if (cargado.current) return;
+    cargado.current = true;
+    cargarDocumentos(true);
+  }, []);
 
   const usuarios: Usuario[] = Array.from(
     new Map(
@@ -142,9 +145,7 @@ export default function Documentos() {
   });
 
   const cerrarPrevia = () => {
-    if (archivoPrevia && archivoPrevia !== "error") {
-      URL.revokeObjectURL(archivoPrevia);
-    }
+    if (archivoPrevia && archivoPrevia !== "error") URL.revokeObjectURL(archivoPrevia);
     setPrevistaDoc(null);
     setArchivoPrevia(null);
   };
@@ -159,19 +160,15 @@ export default function Documentos() {
         ? `/expediente/documento/${id}/archivo`
         : `/academicos/documento/${id}/archivo`;
       const base = await getBase();
-
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
-
       const res = await fetch(`${base}${url}`, {
         headers: { Authorization: `Bearer ${token}` },
         signal: controller.signal,
       });
       clearTimeout(timeout);
-
       const blob = await res.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      setArchivoPrevia(objectUrl);
+      setArchivoPrevia(URL.createObjectURL(blob));
     } catch {
       setArchivoPrevia("error");
     } finally {
@@ -185,10 +182,16 @@ export default function Documentos() {
       ? `/expediente/documento/${id}/archivo?download=true`
       : `/academicos/documento/${id}/archivo?download=true`;
     const base = await getBase();
+    const res = await fetch(`${base}${url}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = `${base}${url}`;
+    a.href = objectUrl;
     a.download = getNombre(doc);
     a.click();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
   };
 
   const handleEliminar = async (doc: Documento) => {
@@ -198,7 +201,7 @@ export default function Documentos() {
       doc.categoria === "expediente"
         ? await fetchWithFallback(`/expediente/documento/${id}`, { method: "DELETE", headers })
         : await fetchWithFallback(`/academicos/documento/${id}`, { method: "DELETE", headers });
-      cargarDocumentos();
+      cargarDocumentos(true);
     } catch {
       alert("No se pudo eliminar.");
     }
@@ -216,10 +219,17 @@ export default function Documentos() {
     const id = getId(editandoDoc);
     try {
       const formData = new FormData();
+
+      // Agregar .pdf si no lo tiene
+      const base = nuevoNombre.trim().toLowerCase().endsWith(".pdf")
+        ? nuevoNombre.trim().slice(0, -4)
+        : nuevoNombre.trim();
+      const nombreFinal = `${base}.pdf`;
+
       if (editandoDoc.categoria === "expediente") {
-        formData.append("nombre_documento", nuevoNombre.trim());
+        formData.append("nombre_documento", nombreFinal);
       } else {
-        formData.append("nombre", nuevoNombre.trim());
+        formData.append("nombre", nombreFinal);
       }
       if (nuevoArchivo) formData.append("file", nuevoArchivo);
       const url = editandoDoc.categoria === "expediente"
@@ -232,7 +242,7 @@ export default function Documentos() {
       });
       setEditandoDoc(null);
       setNuevoArchivo(null);
-      cargarDocumentos();
+      cargarDocumentos(true);
     } catch {
       alert("No se pudo actualizar.");
     } finally {
@@ -248,7 +258,6 @@ export default function Documentos() {
       <Header rol={rol} nombre={nombre} />
 
       <main className="max-w-7xl mx-auto px-6 mt-10">
-
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -372,14 +381,16 @@ export default function Documentos() {
                             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                           </svg>
                         </button>
-                        <button onClick={() => handleEliminar(doc)} className="text-gray-400 hover:text-red-600 transition p-1.5 rounded-md hover:bg-red-50" title="Eliminar">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <polyline points="3 6 5 6 21 6" />
-                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                            <path d="M10 11v6" /><path d="M14 11v6" />
-                            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                          </svg>
-                        </button>
+                        {isAdmin() && (
+                          <button onClick={() => handleEliminar(doc)} className="text-gray-400 hover:text-red-600 transition p-1.5 rounded-md hover:bg-red-50" title="Eliminar">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <polyline points="3 6 5 6 21 6" />
+                              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                              <path d="M10 11v6" /><path d="M14 11v6" />
+                              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                            </svg>
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -428,8 +439,7 @@ export default function Documentos() {
                   </svg>
                   <p className="text-gray-500 text-sm font-medium">No se puede mostrar la vista previa de este archivo</p>
                   <p className="text-gray-400 text-xs">El archivo es muy grande o tardó demasiado en cargar</p>
-                  <button
-                    onClick={() => previstaDoc && handleDescargar(previstaDoc)}
+                  <button onClick={() => previstaDoc && handleDescargar(previstaDoc)}
                     className="mt-2 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium px-3 py-1.5 rounded-md hover:bg-blue-50 transition"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -456,9 +466,10 @@ export default function Documentos() {
             <input type="text" value={nuevoNombre}
               onChange={(e) => setNuevoNombre(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleGuardarEdicion()}
-              className="border border-gray-300 rounded-md w-full p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="border border-gray-300 rounded-md w-full p-2 mb-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
               autoFocus
             />
+            <p className="text-xs text-gray-400 mb-3">Se agregará .pdf automáticamente si no lo incluyes</p>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Reemplazar archivo
               <span className="text-gray-400 font-normal ml-1">(opcional)</span>

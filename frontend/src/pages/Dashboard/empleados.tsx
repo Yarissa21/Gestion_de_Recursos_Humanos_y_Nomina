@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import Header from "../../components/Header";
 import { isAdmin, isAdminOrRH } from "../../utils/auth";
@@ -86,10 +86,113 @@ const hoy = new Date();
 const maxFecha = new Date(hoy.getFullYear() - 18, hoy.getMonth(), hoy.getDate()).toISOString().split("T")[0];
 const minFecha = new Date(hoy.getFullYear() - 100, hoy.getMonth(), hoy.getDate()).toISOString().split("T")[0];
 
+const CACHE_KEY = "cache_empleados";
+const CACHE_TTL = 5 * 60 * 1000;
+
+function SearchSelect({
+  options,
+  value,
+  onChange,
+  placeholder,
+  labelKey,
+  valueKey,
+  disabled = false,
+}: {
+  options: any[];
+  value: number | string | "";
+  onChange: (v: number | string | "") => void;
+  placeholder: string;
+  labelKey: (o: any) => string;
+  valueKey: (o: any) => number | string;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busq, setBusq] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+  const mostrarBusqueda = options.length > 5;
+
+  const filtrados = busq.trim()
+    ? options.filter((o) => labelKey(o).toLowerCase().includes(busq.toLowerCase()))
+    : options;
+
+  const seleccionado = options.find((o) => valueKey(o) === value);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setBusq("");
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative w-full">
+      <button
+        type="button"
+        onClick={() => { if (!disabled) setOpen(!open); }}
+        className={`w-full border rounded-md px-3 py-2 text-sm text-left flex items-center justify-between gap-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+          disabled
+            ? "bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed"
+            : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
+        }`}
+      >
+        <span className="truncate">
+          {seleccionado ? labelKey(seleccionado) : placeholder}
+        </span>
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
+          {mostrarBusqueda && (
+            <div className="p-2 border-b border-gray-100">
+              <input
+                autoFocus
+                type="text"
+                placeholder="Buscar..."
+                value={busq}
+                onChange={(e) => setBusq(e.target.value)}
+                className="w-full border border-gray-200 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+              />
+            </div>
+          )}
+          <ul className="max-h-48 overflow-y-auto py-1">
+            <li
+              onClick={() => { onChange(""); setOpen(false); setBusq(""); }}
+              className="px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 cursor-pointer"
+            >
+              {placeholder}
+            </li>
+            {filtrados.length === 0 ? (
+              <li className="px-3 py-2 text-sm text-gray-400">Sin resultados</li>
+            ) : filtrados.map((o) => (
+              <li
+                key={valueKey(o)}
+                onClick={() => { onChange(valueKey(o)); setOpen(false); setBusq(""); }}
+                className={`px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 hover:text-blue-700 ${
+                  value === valueKey(o) ? "bg-blue-50 text-blue-700 font-medium" : "text-gray-700"
+                }`}
+              >
+                {labelKey(o)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Empleados() {
   if (!isAdminOrRH()) return <Navigate to="/dashboard" replace />;
-  
+
   const navigate = useNavigate();
+  const cargado = useRef(false);
 
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
@@ -113,7 +216,26 @@ export default function Empleados() {
     Authorization: `Bearer ${token}`,
   };
 
-  const cargarDatos = () => {
+  const limpiarCache = () => {
+    sessionStorage.removeItem(CACHE_KEY);
+    sessionStorage.removeItem("dashboard_cache");
+  };
+
+  const cargarDatos = async (forzar = false) => {
+    if (!forzar) {
+      const cache = sessionStorage.getItem(CACHE_KEY);
+      if (cache) {
+        const data = JSON.parse(cache);
+        if (Date.now() < data._expires) {
+          setEmpleados(data.empleados);
+          setDepartamentos(data.departamentos);
+          setPuestos(data.puestos);
+          setLoading(false);
+          return;
+        }
+        sessionStorage.removeItem(CACHE_KEY);
+      }
+    }
     setLoading(true);
     Promise.all([
       fetchWithFallback("/empleados", { headers }).then((r) => r.json()),
@@ -121,15 +243,26 @@ export default function Empleados() {
       fetchWithFallback("/puestos", { headers }).then((r) => r.json()),
     ])
       .then(([emps, deps, psts]) => {
-        setEmpleados(Array.isArray(emps) ? emps : []);
-        setDepartamentos(Array.isArray(deps) ? deps : []);
-        setPuestos(Array.isArray(psts) ? psts : []);
+        const empleados = Array.isArray(emps) ? emps : [];
+        const departamentos = Array.isArray(deps) ? deps : [];
+        const puestos = Array.isArray(psts) ? psts : [];
+        setEmpleados(empleados);
+        setDepartamentos(departamentos);
+        setPuestos(puestos);
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+          _expires: Date.now() + CACHE_TTL,
+          empleados, departamentos, puestos,
+        }));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { cargarDatos(); }, []);
+  useEffect(() => {
+    if (cargado.current) return;
+    cargado.current = true;
+    cargarDatos();
+  }, []);
 
   const puestosFiltrados = puestos.filter(
     (p) => p.id_departamento === Number(form.id_departamento)
@@ -212,17 +345,16 @@ export default function Empleados() {
         id_departamento: Number(form.id_departamento),
         id_puesto: Number(form.id_puesto),
       };
-
       const res = editando
         ? await fetchWithFallback(`/empleados/${editando.id_empleado}`, { method: "PUT", headers, body: JSON.stringify(body) })
         : await fetchWithFallback("/empleados", { method: "POST", headers, body: JSON.stringify(body) });
-
       if (!res.ok) {
         const err = await res.json();
         throw new Error(parseError(err));
       }
       setMostrarModal(false);
-      cargarDatos();
+      limpiarCache();
+      cargarDatos(true);
     } catch (e: any) {
       setErrorGlobal(e.message || "No se pudo guardar el empleado.");
     } finally {
@@ -235,7 +367,8 @@ export default function Empleados() {
     try {
       const res = await fetchWithFallback(`/empleados/${id}`, { method: "DELETE", headers });
       if (!res.ok) { const err = await res.json(); throw new Error(parseError(err)); }
-      cargarDatos();
+      limpiarCache();
+      cargarDatos(true);
     } catch (e: any) {
       alert(e.message || "No se pudo eliminar el empleado.");
     }
@@ -245,7 +378,8 @@ export default function Empleados() {
     try {
       const res = await fetchWithFallback(`/empleados/${id}/estado`, { method: "PATCH", headers, body: JSON.stringify({ estado }) });
       if (!res.ok) { const err = await res.json(); throw new Error(parseError(err)); }
-      cargarDatos();
+      limpiarCache();
+      cargarDatos(true);
     } catch (e: any) {
       alert(e.message || "No se pudo cambiar el estado.");
     }
@@ -339,15 +473,16 @@ export default function Empleados() {
                 </button>
               ))}
             </div>
-            <select value={filtroDep}
-              onChange={(e) => setFiltroDep(e.target.value === "todos" ? "todos" : Number(e.target.value))}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
-            >
-              <option value="todos">Todos los departamentos</option>
-              {departamentos.map((d) => (
-                <option key={d.id_departamento} value={d.id_departamento}>{d.nombre_departamento}</option>
-              ))}
-            </select>
+            <div className="w-52">
+              <SearchSelect
+                options={[{ id_departamento: "todos", nombre_departamento: "Todos los departamentos" }, ...departamentos]}
+                value={filtroDep}
+                onChange={(v) => setFiltroDep(v === "todos" ? "todos" : Number(v))}
+                placeholder="Seleccione un filtro"
+                labelKey={(d) => d.nombre_departamento}
+                valueKey={(d) => d.id_departamento}
+              />
+            </div>
             <span className="text-sm text-gray-400 ml-auto">
               {empleadosFiltrados.length} empleado{empleadosFiltrados.length !== 1 ? "s" : ""}
             </span>
@@ -357,12 +492,14 @@ export default function Empleados() {
             {empleadosFiltrados.length === 0 ? (
               <div className="text-center py-10">
                 <p className="text-gray-400 mb-4">No hay empleados registrados</p>
-                <button onClick={abrirCrear} className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition font-medium text-sm">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                  Crear primer empleado
-                </button>
+                {isAdmin() && (
+                  <button onClick={abrirCrear} className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition font-medium text-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    Crear primer empleado
+                  </button>
+                )}
               </div>
             ) : (
               <table className="w-full border-collapse">
@@ -393,31 +530,41 @@ export default function Empleados() {
                         Q {emp.salario.toLocaleString("es-GT", { minimumFractionDigits: 2 })}
                       </td>
                       <td className="p-4">
-                        <select value={emp.estado}
-                          onChange={(e) => handleCambiarEstado(emp.id_empleado, e.target.value)}
-                          className={`text-xs font-medium px-2 py-1 rounded-full border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer ${estadoBadge(emp.estado)}`}
-                        >
-                          <option value="Activo">Activo</option>
-                          <option value="Suspendido">Suspendido</option>
-                          <option value="Retirado">Retirado</option>
-                        </select>
+                        {isAdmin() ? (
+                          <select value={emp.estado}
+                            onChange={(e) => handleCambiarEstado(emp.id_empleado, e.target.value)}
+                            className={`text-xs font-medium px-2 py-1 rounded-full border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer ${estadoBadge(emp.estado)}`}
+                          >
+                            <option value="Activo">Activo</option>
+                            <option value="Suspendido">Suspendido</option>
+                            <option value="Retirado">Retirado</option>
+                          </select>
+                        ) : (
+                          <span className={`text-xs font-medium px-2 py-1 rounded-full ${estadoBadge(emp.estado)}`}>
+                            {emp.estado}
+                          </span>
+                        )}
                       </td>
                       <td className="p-4">
                         <div className="flex items-center justify-center gap-1">
-                          <button onClick={() => abrirEditar(emp)} className="text-gray-400 hover:text-amber-600 transition p-1.5 rounded-md hover:bg-amber-50" title="Editar">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                            </svg>
-                          </button>
-                          <button onClick={() => handleEliminar(emp.id_empleado)} className="text-gray-400 hover:text-red-600 transition p-1.5 rounded-md hover:bg-red-50" title="Eliminar">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <polyline points="3 6 5 6 21 6" />
-                              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                              <path d="M10 11v6" /><path d="M14 11v6" />
-                              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                            </svg>
-                          </button>
+                          {isAdmin() && (
+                            <button onClick={() => abrirEditar(emp)} className="text-gray-400 hover:text-amber-600 transition p-1.5 rounded-md hover:bg-amber-50" title="Editar">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                              </svg>
+                            </button>
+                          )}
+                          {isAdmin() && (
+                            <button onClick={() => handleEliminar(emp.id_empleado)} className="text-gray-400 hover:text-red-600 transition p-1.5 rounded-md hover:bg-red-50" title="Eliminar">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <polyline points="3 6 5 6 21 6" />
+                                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                                <path d="M10 11v6" /><path d="M14 11v6" />
+                                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                              </svg>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -515,32 +662,30 @@ export default function Empleados() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Departamento</label>
-                <select value={form.id_departamento}
-                  onChange={(e) => {
-                    setForm((prev) => ({ ...prev, id_departamento: e.target.value, id_puesto: "" }));
+                <SearchSelect
+                  options={departamentos}
+                  value={form.id_departamento === "" ? "" : Number(form.id_departamento)}
+                  onChange={(v) => {
+                    setForm((prev) => ({ ...prev, id_departamento: v === "" ? "" : String(v), id_puesto: "" }));
                     setErrores((prev) => { const n = { ...prev }; delete n.id_departamento; return n; });
                   }}
-                  className={inputClass(errores.id_departamento)}
-                >
-                  <option value="">Seleccionar departamento</option>
-                  {departamentos.map((d) => (
-                    <option key={d.id_departamento} value={d.id_departamento}>{d.nombre_departamento}</option>
-                  ))}
-                </select>
+                  placeholder="Seleccionar departamento"
+                  labelKey={(d) => d.nombre_departamento}
+                  valueKey={(d) => d.id_departamento}
+                />
                 {errores.id_departamento && <p className="text-xs text-red-500 mt-0.5">{errores.id_departamento}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Puesto</label>
-                <select value={form.id_puesto}
-                  onChange={(e) => setField("id_puesto", e.target.value)}
+                <SearchSelect
+                  options={puestosFiltrados}
+                  value={form.id_puesto === "" ? "" : Number(form.id_puesto)}
+                  onChange={(v) => setField("id_puesto", v === "" ? "" : String(v))}
+                  placeholder="Seleccionar puesto"
+                  labelKey={(p) => p.nombre_puesto}
+                  valueKey={(p) => p.id_puesto}
                   disabled={!form.id_departamento}
-                  className={`${inputClass(errores.id_puesto)} disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  <option value="">Seleccionar puesto</option>
-                  {puestosFiltrados.map((p) => (
-                    <option key={p.id_puesto} value={p.id_puesto}>{p.nombre_puesto}</option>
-                  ))}
-                </select>
+                />
                 {errores.id_puesto && <p className="text-xs text-red-500 mt-0.5">{errores.id_puesto}</p>}
               </div>
             </div>

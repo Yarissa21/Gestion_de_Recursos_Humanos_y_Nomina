@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef  } from "react";
 import Header from "../../components/Header";
 import { fetchWithFallback } from "../../utils/api";
 
@@ -117,48 +117,49 @@ export default function MiPerfil() {
     } catch { return REMOTE; }
   };
 
-  useEffect(() => {
+  const cargado = useRef(false);
+
+    useEffect(() => {
+    if (cargado.current) return;
+    cargado.current = true;
     if (!token) return;
     if (rol === "admin") {
       setSinVincular(true);
       setLoading(false);
       return;
     }
-    fetchWithFallback("/empleados/mi-perfil", { headers })
-      .then((r) => r.json())
+    fetchWithFallback("/empleados/mi-perfil/completo", { headers })
+      .then(r => r.json())
       .then((data) => {
-        if (data?.id_empleado) {
-          setEmpleado(data);
-          cargarTodos(data.id_empleado);
-        } else {
-          setSinVincular(true);
+        if (!data?.empleado) { setSinVincular(true); return; }
+        setEmpleado(data.empleado);
+        setTiposExp(Array.isArray(data.tiposExp) ? data.tiposExp : []);
+        setTiposAcad(Array.isArray(data.tiposAcad) ? data.tiposAcad : []);
+        setDocsExp(Array.isArray(data.docsExp) ? data.docsExp : []);
+        if (Array.isArray(data.academicos) && data.academicos.length > 0) {
+          const ac = data.academicos[0];
+          setInfoAcademica(ac);
+          setDocsAcad(Array.isArray(ac.documentos) ? ac.documentos : []);
         }
       })
       .catch(() => setSinVincular(true))
       .finally(() => setLoading(false));
   }, []);
 
-  const cargarTodos = async (id_empleado: number) => {
+  const cargarTodos = async (_id_empleado?: number) => {
     setLoadingDocs(true);
     try {
-      const [expDocs, tiposExpRes, tiposAcadRes, acadRes] = await Promise.all([
-        fetchWithFallback(`/expediente/documentos/empleado/${id_empleado}`, { headers }).then((r) => r.json()),
-        fetchWithFallback("/expediente/tipos", { headers }).then((r) => r.json()),
-        fetchWithFallback("/tipos-documento-academico", { headers }).then((r) => r.json()),
-        fetchWithFallback(`/academicos/empleado/${id_empleado}`, { headers }).then((r) => r.json()),
-      ]);
-
-      setDocsExp(Array.isArray(expDocs) ? expDocs : []);
-      setTiposExp(Array.isArray(tiposExpRes) ? tiposExpRes : []);
-      setTiposAcad(Array.isArray(tiposAcadRes) ? tiposAcadRes : []);
-
-      if (Array.isArray(acadRes) && acadRes.length > 0) {
-        const ac = acadRes[0];
+      const res = await fetchWithFallback("/empleados/mi-perfil/completo", { headers });
+      const data = await res.json();
+      console.log("DATA COMPLETO:", JSON.stringify(data?.academicos, null, 2));
+      if (!data?.empleado) return;
+      setTiposExp(Array.isArray(data.tiposExp) ? data.tiposExp : []);
+      setTiposAcad(Array.isArray(data.tiposAcad) ? data.tiposAcad : []);
+      setDocsExp(Array.isArray(data.docsExp) ? data.docsExp : []);
+      if (Array.isArray(data.academicos) && data.academicos.length > 0) {
+        const ac = data.academicos[0];
         setInfoAcademica(ac);
-        const acadDocs = await fetchWithFallback("/academicos/documentos", { headers }).then((r) => r.json());
-        if (Array.isArray(acadDocs)) {
-          setDocsAcad(acadDocs.filter((d: any) => Number(d.id_academico) === Number(ac.id_academico)));
-        }
+        setDocsAcad(Array.isArray(ac.documentos) ? ac.documentos : []);
       }
     } catch {
       setDocsExp([]);
@@ -245,10 +246,14 @@ export default function MiPerfil() {
     const url = categoria === "expediente"
       ? `${base}/expediente/documento/${id}/archivo?download=true`
       : `${base}/academicos/documento/${id}/archivo?download=true`;
+    const res = await fetch(url, { headers });
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
+    a.href = objectUrl;
     a.download = nombreArchivo;
     a.click();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
   };
 
   return (

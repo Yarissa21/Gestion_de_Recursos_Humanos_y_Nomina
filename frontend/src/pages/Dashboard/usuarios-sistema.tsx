@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import Header from "../../components/Header";
 import { isAdmin } from "../../utils/auth";
@@ -31,10 +31,113 @@ const parseError = (err: any): string => {
   return "Error desconocido";
 };
 
+function SearchSelect({
+  options,
+  value,
+  onChange,
+  placeholder,
+  labelKey,
+  valueKey,
+  disabled = false,
+}: {
+  options: any[];
+  value: number | "";
+  onChange: (v: number | "") => void;
+  placeholder: string;
+  labelKey: (o: any) => string;
+  valueKey: (o: any) => number;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busq, setBusq] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+  const mostrarBusqueda = options.length > 5;
+
+  const filtrados = busq.trim()
+    ? options.filter((o) => labelKey(o).toLowerCase().includes(busq.toLowerCase()))
+    : options;
+
+  const seleccionado = options.find((o) => valueKey(o) === value);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setBusq("");
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative w-full">
+      <button
+        type="button"
+        onClick={() => { if (!disabled) setOpen(!open); }}
+        className={`w-full border rounded-md px-3 py-2 text-sm text-left flex items-center justify-between gap-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+          disabled
+            ? "bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed"
+            : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
+        }`}
+      >
+        <span className="truncate">
+          {seleccionado ? labelKey(seleccionado) : placeholder}
+        </span>
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
+          {mostrarBusqueda && (
+            <div className="p-2 border-b border-gray-100">
+              <input
+                autoFocus
+                type="text"
+                placeholder="Buscar..."
+                value={busq}
+                onChange={(e) => setBusq(e.target.value)}
+                className="w-full border border-gray-200 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+              />
+            </div>
+          )}
+          <ul className="max-h-48 overflow-y-auto py-1">
+            <li
+              onClick={() => { onChange(""); setOpen(false); setBusq(""); }}
+              className="px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 cursor-pointer"
+            >
+              {placeholder}
+            </li>
+            {filtrados.length === 0 ? (
+              <li className="px-3 py-2 text-sm text-gray-400">Sin resultados</li>
+            ) : filtrados.map((o) => (
+              <li
+                key={valueKey(o)}
+                onClick={() => { onChange(valueKey(o)); setOpen(false); setBusq(""); }}
+                className={`px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 hover:text-blue-700 ${
+                  value === valueKey(o) ? "bg-blue-50 text-blue-700 font-medium" : "text-gray-700"
+                }`}
+              >
+                {labelKey(o)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const CACHE_KEY = "cache_usuarios_sistema";
+const CACHE_TTL = 5 * 60 * 1000;
+
 export default function UsuariosSistema() {
   if (!isAdmin()) return <Navigate to="/dashboard" replace />;
 
   const navigate = useNavigate();
+  const cargado = useRef(false);
 
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
@@ -59,24 +162,53 @@ export default function UsuariosSistema() {
     Authorization: `Bearer ${token}`,
   };
 
-  const cargarDatos = () => {
+  const limpiarCache = () => {
+    sessionStorage.removeItem(CACHE_KEY);
+    sessionStorage.removeItem("dashboard_cache");
+    sessionStorage.removeItem("cache_empleados");
+  };
+
+  const cargarDatos = async (forzar = false) => {
+    if (!forzar) {
+      const cache = sessionStorage.getItem(CACHE_KEY);
+      if (cache) {
+        const data = JSON.parse(cache);
+        if (Date.now() < data._expires) {
+          setUsuarios(data.usuarios);
+          setEmpleados(data.empleados);
+          setLoading(false);
+          return;
+        }
+        sessionStorage.removeItem(CACHE_KEY);
+      }
+    }
     setLoading(true);
     Promise.all([
       fetchWithFallback("/api/usuarios/lista", { headers }).then((r) => r.json()),
       fetchWithFallback("/empleados", { headers }).then((r) => r.json()),
     ])
       .then(([usrs, emps]) => {
-        setUsuarios(Array.isArray(usrs) ? usrs : []);
-        setEmpleados(Array.isArray(emps) ? emps : []);
+        const usuarios = Array.isArray(usrs) ? usrs : [];
+        const empleados = Array.isArray(emps) ? emps : [];
+        setUsuarios(usuarios);
+        setEmpleados(empleados);
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+          _expires: Date.now() + CACHE_TTL,
+          usuarios, empleados,
+        }));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { cargarDatos(); }, []);
+  useEffect(() => {
+    if (cargado.current) return;
+    cargado.current = true;
+    cargarDatos();
+  }, []);
 
   const empleadosLibres = empleados.filter(
-    (emp) => !usuarios.some((u) => u.id_empleado === emp.id_empleado)
+    (emp) => !usuarios.some((u) => Number(u.id_empleado) === Number(emp.id_empleado))
   );
 
   const getNombreEmpleado = (id: number | null) => {
@@ -99,7 +231,8 @@ export default function UsuariosSistema() {
       if (!res.ok) { const err = await res.json(); throw new Error(parseError(err)); }
       setMostrarModalUser(false);
       setUserForm({ nombre: "", password: "", rol: "user" });
-      cargarDatos();
+      limpiarCache();
+      cargarDatos(true);
     } catch (e: any) {
       setErrorUser(e.message || "No se pudo crear el usuario.");
     } finally {
@@ -119,7 +252,8 @@ export default function UsuariosSistema() {
       if (!res.ok) { const err = await res.json(); throw new Error(parseError(err)); }
       setModalVincular(null);
       setEmpSeleccionado("");
-      cargarDatos();
+      limpiarCache();
+      cargarDatos(true);
     } catch (e: any) {
       alert(e.message || "No se pudo vincular.");
     } finally {
@@ -135,7 +269,8 @@ export default function UsuariosSistema() {
         headers,
       });
       if (!res.ok) { const err = await res.json(); throw new Error(parseError(err)); }
-      cargarDatos();
+      limpiarCache();
+      cargarDatos(true);
     } catch (e: any) {
       alert(e.message || "No se pudo desvincular.");
     }
@@ -161,7 +296,7 @@ export default function UsuariosSistema() {
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
               <button
-                onClick={() => navigate("/usuarios")}
+                onClick={() => navigate("/empleados")}
                 className="text-gray-400 hover:text-gray-600 transition p-1 rounded-md hover:bg-gray-100"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -379,17 +514,16 @@ export default function UsuariosSistema() {
               Usuario: <span className="font-medium text-gray-800">{modalVincular.nombre}</span>
             </p>
             <label className="block text-sm font-medium text-gray-700 mb-1">Seleccionar Empleado</label>
-            <select value={empSeleccionado}
-              onChange={(e) => setEmpSeleccionado(Number(e.target.value))}
-              className="border border-gray-300 rounded-md w-full p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"
-            >
-              <option value="">— Seleccionar —</option>
-              {empleadosLibres.map((emp) => (
-                <option key={emp.id_empleado} value={emp.id_empleado}>
-                  {emp.nombre_empleado} {emp.apellido_empleado}
-                </option>
-              ))}
-            </select>
+            <div className="mb-2">
+              <SearchSelect
+                options={empleadosLibres}
+                value={empSeleccionado}
+                onChange={(v) => setEmpSeleccionado(v === "" ? "" : Number(v))}
+                placeholder="— Seleccionar —"
+                labelKey={(emp) => `${emp.nombre_empleado} ${emp.apellido_empleado}`}
+                valueKey={(emp) => emp.id_empleado}
+              />
+            </div>
             {empleadosLibres.length === 0 && (
               <p className="text-xs text-amber-600 mb-4">Todos los empleados ya están vinculados.</p>
             )}

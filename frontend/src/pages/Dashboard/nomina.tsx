@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import Header from "../../components/Header";
-import { isAdmin, isRH } from "../../utils/auth";
+import { isAdmin, isRH, isUser, isAdminOrRH } from "../../utils/auth";
 import { fetchWithFallback } from "../../utils/api";
 
 interface Nomina {
@@ -14,6 +14,7 @@ interface Nomina {
 interface DetalleNomina {
   id_detalle: number;
   id_empleado: number;
+  empleado?: { nombre_empleado: string; apellido_empleado: string };
   salario_base: number;
   horas_trabajadas: number;
   horas_extra: number;
@@ -51,11 +52,25 @@ type Vista = "lista" | "detalle" | "historial";
 
 const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 
-// Un concepto es editable manualmente si no tiene porcentaje, monto_fijo ni fecha_aplica
 const esConceptoManual = (concepto: ConceptoCatalogo) =>
   concepto.porcentaje == null &&
   concepto.monto_fijo == null &&
   concepto.fecha_aplica == null;
+
+// Genera lista de meses desde el actual hacia atrás (últimos 24 meses)
+const generarMesesDisponibles = () => {
+  const hoy = new Date();
+  const meses = [];
+  for (let i = 0; i < 24; i++) {
+    const fecha = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+    meses.push({
+      mes: fecha.getMonth(),
+      anio: fecha.getFullYear(),
+      label: `${MESES[fecha.getMonth()]} ${fecha.getFullYear()}`,
+    });
+  }
+  return meses;
+};
 
 export default function Nomina() {
   const token = localStorage.getItem("token");
@@ -67,15 +82,23 @@ export default function Nomina() {
     Authorization: `Bearer ${token}`,
   };
 
+  const canEdit = isAdmin() || isRH();
+  const esRolUser = isUser();
+
+  const mesesDisponibles = generarMesesDisponibles();
+
   const [vista, setVista] = useState<Vista>("lista");
   const [nominas, setNominas] = useState<Nomina[]>([]);
   const [loading, setLoading] = useState(true);
   const [nominaActiva, setNominaActiva] = useState<Nomina | null>(null);
+  const [miIdEmpleado, setMiIdEmpleado] = useState<number | null>(null);
 
   const [mostrarCrear, setMostrarCrear] = useState(false);
   const [tipo, setTipo] = useState<"Mensual" | "Quincenal">("Mensual");
   const [quincena, setQuincena] = useState<"Primera" | "Segunda">("Primera");
+  const [mesSeleccionado, setMesSeleccionado] = useState(0); // índice en mesesDisponibles
   const [guardandoCrear, setGuardandoCrear] = useState(false);
+  const [errorCrear, setErrorCrear] = useState("");
 
   const [detalles, setDetalles] = useState<DetalleNomina[]>([]);
   const [loadingDetalles, setLoadingDetalles] = useState(false);
@@ -85,7 +108,7 @@ export default function Nomina() {
   const [horasTrabajadas, setHorasTrabajadas] = useState("");
   const [horasExtra, setHorasExtra] = useState("");
   const [guardandoDetalle, setGuardandoDetalle] = useState(false);
-  const [recalculando, setRecalculando] = useState(false);
+  const [recalculandoDetalle, setRecalculandoDetalle] = useState<number | null>(null);
 
   const [editandoConcepto, setEditandoConcepto] = useState<DetalleConcepto | null>(null);
   const [montoConcepto, setMontoConcepto] = useState("");
@@ -93,39 +116,62 @@ export default function Nomina() {
 
   const [historial, setHistorial] = useState<AjusteNomina[]>([]);
   const [loadingHistorial, setLoadingHistorial] = useState(false);
+  const [sincronizando, setSincronizando] = useState(false);
 
   const [filtroEstado, setFiltroEstado] = useState<"todos" | "Pendiente" | "Procesada" | "Cerrada">("todos");
   const [filtroTipo, setFiltroTipo] = useState<"todos" | "Mensual" | "Quincenal">("todos");
 
-  const cargarNominas = () => {
-    setLoading(true);
-    fetchWithFallback("/nomina", { headers })
-      .then((r) => r.json())
-      .then((d) => setNominas(Array.isArray(d) ? d : []))
-      .catch(() => setNominas([]))
-      .finally(() => setLoading(false));
+  useEffect(() => {
+    const cargar = async () => {
+      setLoading(true);
+      try {
+        if (esRolUser) {
+          const [nominasRes, perfilRes] = await Promise.all([
+            fetchWithFallback("/nomina/mis-nominas", { headers }).then(r => r.json()),
+            fetchWithFallback("/empleados/mi-perfil", { headers }).then(r => r.json()),
+          ]);
+          setNominas(Array.isArray(nominasRes) ? nominasRes : []);
+          if (perfilRes?.id_empleado) setMiIdEmpleado(perfilRes.id_empleado);
+        } else {
+          const res = await fetchWithFallback("/nomina", { headers });
+          const data = await res.json();
+          setNominas(Array.isArray(data) ? data : []);
+        }
+      } catch {
+        setNominas([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    cargar();
+  }, []);
+
+  const cargarNominas = async () => {
+    try {
+      const endpoint = esRolUser ? "/nomina/mis-nominas" : "/nomina";
+      const res = await fetchWithFallback(endpoint, { headers });
+      const data = await res.json();
+      setNominas(Array.isArray(data) ? data : []);
+    } catch {}
   };
 
-  useEffect(() => { cargarNominas(); }, []);
-
   const getPeriodo = () => {
-    const hoy = new Date();
-    const mes = MESES[hoy.getMonth()];
-    const anio = hoy.getFullYear();
-    if (tipo === "Mensual") return `${mes} ${anio}`;
-    return `${quincena === "Primera" ? "Primera" : "Segunda"} Quincena ${mes} ${anio}`;
+    const { mes, anio } = mesesDisponibles[mesSeleccionado];
+    const nombreMes = MESES[mes];
+    if (tipo === "Mensual") return `${nombreMes} ${anio}`;
+    return `${quincena === "Primera" ? "Primera" : "Segunda"} Quincena ${nombreMes} ${anio}`;
   };
 
   const fmt = (n: number | null | undefined) =>
     n != null ? `Q ${n.toLocaleString("es-GT", { minimumFractionDigits: 2 })}` : "—";
 
   const fmtCampo = (campo: string, valor: number) => {
-    const camposHoras = ["horas_trabajadas", "horas_extra"];
-    if (camposHoras.includes(campo)) return `${valor} hrs`;
+    if (["horas_trabajadas", "horas_extra"].includes(campo)) return `${valor} hrs`;
     return fmt(valor);
   };
 
   const handleCrearNomina = async () => {
+    setErrorCrear("");
     setGuardandoCrear(true);
     try {
       const res = await fetchWithFallback("/nomina", {
@@ -138,9 +184,12 @@ export default function Nomina() {
         throw new Error(err.message || "Error al crear");
       }
       setMostrarCrear(false);
-      cargarNominas();
+      setMesSeleccionado(0);
+      setTipo("Mensual");
+      setQuincena("Primera");
+      await cargarNominas();
     } catch (e: any) {
-      alert(e.message || "No se pudo crear la nómina.");
+      setErrorCrear(e.message || "No se pudo crear la nómina.");
     } finally {
       setGuardandoCrear(false);
     }
@@ -150,7 +199,7 @@ export default function Nomina() {
     if (!confirm("¿Eliminar esta nómina?")) return;
     try {
       await fetchWithFallback(`/nomina/${id}`, { method: "DELETE", headers });
-      cargarNominas();
+      await cargarNominas();
     } catch {
       alert("No se pudo eliminar.");
     }
@@ -163,7 +212,7 @@ export default function Nomina() {
         headers,
         body: JSON.stringify({ estado }),
       });
-      cargarNominas();
+      await cargarNominas();
       if (nominaActiva?.id_nomina === id) {
         setNominaActiva((prev) => prev ? { ...prev, estado: estado as any } : prev);
       }
@@ -172,21 +221,30 @@ export default function Nomina() {
     }
   };
 
-  const abrirDetalle = async (nomina: Nomina) => {
-    setNominaActiva(nomina);
-    setVista("detalle");
-    setDetalleExpandido(null);
-    setConceptosMap({});
+  const cargarDetalles = async (nomina: Nomina) => {
     setLoadingDetalles(true);
     try {
       const res = await fetchWithFallback(`/nomina/${nomina.id_nomina}/detalles`, { headers });
       const data = await res.json();
-      setDetalles(Array.isArray(data) ? data : []);
+      const todos = Array.isArray(data) ? data : [];
+      if (esRolUser && miIdEmpleado) {
+        setDetalles(todos.filter((d: DetalleNomina) => d.id_empleado === miIdEmpleado));
+      } else {
+        setDetalles(todos);
+      }
     } catch {
       setDetalles([]);
     } finally {
       setLoadingDetalles(false);
     }
+  };
+
+  const abrirDetalle = async (nomina: Nomina) => {
+    setNominaActiva(nomina);
+    setVista("detalle");
+    setDetalleExpandido(null);
+    setConceptosMap({});
+    await cargarDetalles(nomina);
   };
 
   const toggleConceptos = async (id_detalle: number) => {
@@ -213,7 +271,7 @@ export default function Nomina() {
   };
 
   const handleGuardarDetalle = async () => {
-    if (!editandoDetalle) return;
+    if (!editandoDetalle || !nominaActiva) return;
     setGuardandoDetalle(true);
     try {
       await fetchWithFallback(`/nomina/detalles/${editandoDetalle.id_detalle}`, {
@@ -225,11 +283,22 @@ export default function Nomina() {
         }),
       });
       setEditandoDetalle(null);
-      if (nominaActiva) abrirDetalle(nominaActiva);
+      setRecalculandoDetalle(editandoDetalle.id_detalle);
+      await fetchWithFallback(`/nomina/detalles/${editandoDetalle.id_detalle}/recalcular`, {
+        method: "POST",
+        headers,
+      });
+      await cargarDetalles(nominaActiva);
+      if (detalleExpandido === editandoDetalle.id_detalle) {
+        const res = await fetchWithFallback(`/nomina/detalles/${editandoDetalle.id_detalle}/conceptos`, { headers });
+        const data = await res.json();
+        setConceptosMap((prev) => ({ ...prev, [editandoDetalle.id_detalle]: Array.isArray(data) ? data : [] }));
+      }
     } catch {
       alert("No se pudo actualizar el detalle.");
     } finally {
       setGuardandoDetalle(false);
+      setRecalculandoDetalle(null);
     }
   };
 
@@ -239,7 +308,11 @@ export default function Nomina() {
   };
 
   const handleGuardarConcepto = async () => {
-    if (!editandoConcepto) return;
+    if (!editandoConcepto || !nominaActiva) return;
+    if (Number(montoConcepto) < 0) {
+      alert("El monto no puede ser negativo.");
+      return;
+    }
     setGuardandoConcepto(true);
     try {
       await fetchWithFallback(`/nomina/conceptos/${editandoConcepto.id_detalle_concepto}`, {
@@ -248,35 +321,47 @@ export default function Nomina() {
         body: JSON.stringify({ monto: Number(montoConcepto) }),
       });
       setEditandoConcepto(null);
-      if (detalleExpandido) {
-        const res = await fetchWithFallback(`/nomina/detalles/${detalleExpandido}/conceptos`, { headers });
-        const data = await res.json();
-        setConceptosMap((prev) => ({ ...prev, [detalleExpandido]: Array.isArray(data) ? data : [] }));
+      const id_detalle = detalleExpandido;
+      if (id_detalle) {
+        setRecalculandoDetalle(id_detalle);
+        await fetchWithFallback(`/nomina/detalles/${id_detalle}/recalcular`, {
+          method: "POST",
+          headers,
+        });
+        const [conceptosRes, detallesRes] = await Promise.all([
+          fetchWithFallback(`/nomina/detalles/${id_detalle}/conceptos`, { headers }).then(r => r.json()),
+          fetchWithFallback(`/nomina/${nominaActiva.id_nomina}/detalles`, { headers }).then(r => r.json()),
+        ]);
+        setConceptosMap((prev) => ({ ...prev, [id_detalle]: Array.isArray(conceptosRes) ? conceptosRes : [] }));
+        const todos = Array.isArray(detallesRes) ? detallesRes : [];
+        setDetalles(esRolUser && miIdEmpleado ? todos.filter((d: DetalleNomina) => d.id_empleado === miIdEmpleado) : todos);
+        setRecalculandoDetalle(null);
       }
     } catch {
       alert("No se pudo actualizar el concepto.");
     } finally {
       setGuardandoConcepto(false);
+      setRecalculandoDetalle(null);
     }
   };
 
-  const handleRecalcular = async () => {
+  const handleSincronizar = async () => {
     if (!nominaActiva) return;
-    if (!confirm("¿Recalcular la nómina? Esto actualizará todos los totales y la marcará como Procesada.")) return;
-    setRecalculando(true);
+    if (!confirm("¿Sincronizar la nómina? Se agregarán empleados faltantes y se propagarán conceptos nuevos.")) return;
+    setSincronizando(true);
     try {
-      const res = await fetchWithFallback(`/nomina/${nominaActiva.id_nomina}/recalcular`, {
+      const res = await fetchWithFallback(`/nomina/${nominaActiva.id_nomina}/sincronizar`, {
         method: "POST",
         headers,
       });
       if (!res.ok) throw new Error();
-      await abrirDetalle(nominaActiva);
-      cargarNominas();
-      setNominaActiva((prev) => prev ? { ...prev, estado: "Procesada" } : prev);
+      const data = await res.json();
+      alert(data.mensaje || "Nómina sincronizada.");
+      await cargarDetalles(nominaActiva);
     } catch {
-      alert("No se pudo recalcular.");
+      alert("No se pudo sincronizar.");
     } finally {
-      setRecalculando(false);
+      setSincronizando(false);
     }
   };
 
@@ -307,7 +392,10 @@ export default function Nomina() {
     return "bg-yellow-100 text-yellow-700";
   };
 
-  const canEdit = isAdmin() || isRH();
+  const nombreDetalle = (det: DetalleNomina) =>
+    det.empleado
+      ? `${det.empleado.nombre_empleado} ${det.empleado.apellido_empleado}`
+      : `#${det.id_empleado}`;
 
   // ══════════════════════════════════════════
   // VISTA: LISTA
@@ -323,10 +411,11 @@ export default function Nomina() {
               <line x1="12" y1="1" x2="12" y2="23" />
               <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
             </svg>
-            <h1 className="text-3xl font-bold">Gestión de Nómina</h1>
+            <h1 className="text-3xl font-bold">{esRolUser ? "Mis Nóminas" : "Gestión de Nómina"}</h1>
           </div>
-          {canEdit && (
-            <button onClick={() => setMostrarCrear(true)} className="flex items-center gap-2 bg-green-600 text-white px-5 py-2 rounded-md hover:bg-green-700 transition font-medium">
+          {isAdminOrRH() && (
+            <button onClick={() => { setMostrarCrear(true); setErrorCrear(""); setMesSeleccionado(0); }}
+              className="flex items-center gap-2 bg-green-600 text-white px-5 py-2 rounded-md hover:bg-green-700 transition font-medium">
               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
               </svg>
@@ -335,7 +424,6 @@ export default function Nomina() {
           )}
         </div>
 
-        {/* Filtros */}
         <div className="bg-white rounded-xl shadow-sm p-4 mb-6 flex flex-wrap gap-3 items-center">
           <div className="flex gap-1">
             {(["todos", "Pendiente", "Procesada", "Cerrada"] as const).map((e) => (
@@ -362,14 +450,13 @@ export default function Nomina() {
           <span className="text-sm text-gray-400 ml-auto">{nominasFiltradas.length} nómina{nominasFiltradas.length !== 1 ? "s" : ""}</span>
         </div>
 
-        {/* Tabla */}
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
           {loading ? (
             <p className="text-gray-400 text-center py-10">Cargando...</p>
           ) : nominasFiltradas.length === 0 ? (
             <div className="text-center py-10">
-              <p className="text-gray-400 mb-4">No hay nóminas generadas</p>
-              {canEdit && (
+              <p className="text-gray-400 mb-4">{esRolUser ? "No tienes nóminas registradas" : "No hay nóminas generadas"}</p>
+              {isAdminOrRH() && (
                 <button onClick={() => setMostrarCrear(true)} className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition font-medium text-sm">
                   <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
@@ -409,11 +496,13 @@ export default function Nomina() {
                             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
                           </svg>
                         </button>
-                        <button onClick={() => abrirHistorial(n)} className="text-gray-400 hover:text-purple-600 transition p-1.5 rounded-md hover:bg-purple-50" title="Historial de ajustes">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-                          </svg>
-                        </button>
+                        {canEdit && (
+                          <button onClick={() => abrirHistorial(n)} className="text-gray-400 hover:text-purple-600 transition p-1.5 rounded-md hover:bg-purple-50" title="Historial de ajustes">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                            </svg>
+                          </button>
+                        )}
                         {canEdit && n.estado !== "Cerrada" && (
                           <select value={n.estado} onChange={(e) => handleCambiarEstado(n.id_nomina, e.target.value)}
                             className="text-xs border border-gray-200 rounded-md px-2 py-1 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-400"
@@ -423,7 +512,7 @@ export default function Nomina() {
                             <option value="Cerrada">Cerrada</option>
                           </select>
                         )}
-                        {canEdit && n.estado !== "Cerrada" && (
+                        {isAdmin() && n.estado !== "Cerrada" && (
                           <button onClick={() => handleEliminarNomina(n.id_nomina)} className="text-gray-400 hover:text-red-600 transition p-1.5 rounded-md hover:bg-red-50" title="Eliminar">
                             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <polyline points="3 6 5 6 21 6" />
@@ -443,11 +532,23 @@ export default function Nomina() {
         </div>
       </main>
 
-      {/* Modal crear nómina */}
-      {mostrarCrear && (
+      {/* ── Modal Crear Nómina ── */}
+      {isAdminOrRH() && mostrarCrear && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm">
-            <h3 className="text-lg font-semibold mb-4">Nueva Nómina</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Nueva Nómina</h3>
+              <button onClick={() => setMostrarCrear(false)} className="text-gray-400 hover:text-gray-600">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            {errorCrear && (
+              <div className="mb-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-md px-4 py-3">{errorCrear}</div>
+            )}
+
             <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
             <div className="flex gap-2 mb-4">
               {(["Mensual", "Quincenal"] as const).map((t) => (
@@ -460,6 +561,7 @@ export default function Nomina() {
                 </button>
               ))}
             </div>
+
             {tipo === "Quincenal" && (
               <>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Quincena</label>
@@ -476,9 +578,24 @@ export default function Nomina() {
                 </div>
               </>
             )}
+
+            <label className="block text-sm font-medium text-gray-700 mb-1">Mes</label>
+            <select
+              value={mesSeleccionado}
+              onChange={(e) => setMesSeleccionado(Number(e.target.value))}
+              className="border border-gray-300 rounded-md w-full p-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-green-500"
+            >
+              {mesesDisponibles.map((m, i) => (
+                <option key={i} value={i}>
+                  {i === 0 ? `${m.label} (Actual)` : m.label}
+                </option>
+              ))}
+            </select>
+
             <div className={`rounded-md px-4 py-3 mb-6 text-sm font-medium ${tipo === "Mensual" ? "bg-green-50 text-green-700" : "bg-blue-50 text-blue-700"}`}>
               Periodo: <span className="font-bold">{getPeriodo()}</span>
             </div>
+
             <div className="flex gap-3">
               <button onClick={handleCrearNomina} disabled={guardandoCrear}
                 className="flex-1 bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition font-medium disabled:opacity-60"
@@ -520,24 +637,26 @@ export default function Nomina() {
               </p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <button onClick={() => abrirHistorial(nominaActiva)} className="flex items-center gap-2 text-sm text-purple-600 hover:text-purple-800 font-medium px-3 py-2 rounded-md hover:bg-purple-50 transition">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-              </svg>
-              Historial
-            </button>
-            {canEdit && nominaActiva.estado !== "Cerrada" && (
-              <button onClick={handleRecalcular} disabled={recalculando}
-                className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition font-medium text-sm disabled:opacity-60"
-              >
+          {canEdit && (
+            <div className="flex gap-2">
+              <button onClick={() => abrirHistorial(nominaActiva)} className="flex items-center gap-2 text-sm text-purple-600 hover:text-purple-800 font-medium px-3 py-2 rounded-md hover:bg-purple-50 transition">
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                  <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
                 </svg>
-                {recalculando ? "Calculando..." : "Recalcular"}
+                Historial
               </button>
-            )}
-          </div>
+              {nominaActiva.estado !== "Cerrada" && (
+                <button onClick={handleSincronizar} disabled={sincronizando}
+                  className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition font-medium text-sm disabled:opacity-60"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                  </svg>
+                  {sincronizando ? "Sincronizando..." : "Sincronizar"}
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
@@ -549,7 +668,7 @@ export default function Nomina() {
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
-                  <th className="p-4 text-left font-medium">Empleado ID</th>
+                  <th className="p-4 text-left font-medium">Empleado</th>
                   <th className="p-4 text-left font-medium">Salario Base</th>
                   <th className="p-4 text-left font-medium">H. Trabajadas</th>
                   <th className="p-4 text-left font-medium">H. Extra</th>
@@ -563,7 +682,7 @@ export default function Nomina() {
                 {detalles.map((det) => (
                   <>
                     <tr key={det.id_detalle} className="border-t hover:bg-gray-50 transition">
-                      <td className="p-4 text-sm font-medium">#{det.id_empleado}</td>
+                      <td className="p-4 text-sm font-medium">{nombreDetalle(det)}</td>
                       <td className="p-4 text-sm">{fmt(det.salario_base)}</td>
                       <td className="p-4 text-sm">{det.horas_trabajadas}</td>
                       <td className="p-4 text-sm">{det.horas_extra}</td>
@@ -581,18 +700,26 @@ export default function Nomina() {
                             </svg>
                           </button>
                           {canEdit && nominaActiva.estado !== "Cerrada" && (
-                            <button onClick={() => abrirEditarDetalle(det)} className="text-gray-400 hover:text-amber-600 transition p-1.5 rounded-md hover:bg-amber-50" title="Editar horas">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                              </svg>
+                            <button onClick={() => abrirEditarDetalle(det)}
+                              className="text-gray-400 hover:text-amber-600 transition p-1.5 rounded-md hover:bg-amber-50" title="Editar horas"
+                              disabled={recalculandoDetalle === det.id_detalle}
+                            >
+                              {recalculandoDetalle === det.id_detalle ? (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 animate-spin text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                                </svg>
+                              ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                </svg>
+                              )}
                             </button>
                           )}
                         </div>
                       </td>
                     </tr>
 
-                    {/* Fila expandida conceptos */}
                     {detalleExpandido === det.id_detalle && (
                       <tr key={`conceptos-${det.id_detalle}`} className="bg-gray-50">
                         <td colSpan={8} className="px-8 py-4">
@@ -614,25 +741,19 @@ export default function Nomina() {
                                       <p className={`font-medium ${esDeduccion ? "text-red-700" : "text-green-700"}`}>
                                         {c.concepto.nombre}
                                       </p>
-                                      {/* Solo mostrar editar si es manual y la nómina no está cerrada */}
                                       {canEdit && nominaActiva.estado !== "Cerrada" && esManual ? (
-                                        <button
-                                          onClick={() => abrirEditarConcepto(c)}
-                                          className="text-gray-300 hover:text-amber-500 transition shrink-0"
-                                          title="Editar monto manual"
-                                        >
+                                        <button onClick={() => abrirEditarConcepto(c)} className="text-gray-600 hover:text-amber-500 transition shrink-0" title="Editar monto manual">
                                           <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                                             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                                           </svg>
                                         </button>
                                       ) : (
-                                        /* Ícono de candado para conceptos con fórmula */
                                         <span title={
                                           c.concepto.porcentaje != null ? `Calculado: ${c.concepto.porcentaje * 100}%` :
                                           c.concepto.monto_fijo != null ? `Monto fijo: Q${c.concepto.monto_fijo}` :
                                           c.concepto.fecha_aplica != null ? "Calculado por fecha" : ""
-                                        } className="text-gray-200 shrink-0">
+                                        } className="text-gray-600 shrink-0">
                                           <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                             <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                                             <path d="M7 11V7a5 5 0 0 1 10 0v4" />
@@ -642,9 +763,7 @@ export default function Nomina() {
                                     </div>
                                     <p className="text-gray-500 mt-0.5 flex items-center gap-1">
                                       {c.concepto.tipo}
-                                      {!esManual && (
-                                        <span className="text-gray-300 text-xs">· auto</span>
-                                      )}
+                                      {!esManual && <span className="text-gray-300 text-xs">· auto</span>}
                                     </p>
                                     <p className={`font-bold mt-1 ${esDeduccion ? "text-red-600" : "text-green-600"}`}>
                                       {fmt(c.monto)}
@@ -665,23 +784,18 @@ export default function Nomina() {
         </div>
       </main>
 
-      {/* Modal editar detalle horas */}
       {editandoDetalle && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm">
             <h3 className="text-lg font-semibold mb-1">Editar Horas</h3>
-            <p className="text-sm text-gray-500 mb-4">Empleado #{editandoDetalle.id_empleado}</p>
+            <p className="text-sm text-gray-500 mb-4">{nombreDetalle(editandoDetalle)}</p>
             <label className="block text-sm font-medium text-gray-700 mb-1">Horas Trabajadas</label>
-            <input
-              type="number" min="0" step="1"
-              value={horasTrabajadas}
+            <input type="number" min="0" step="1" value={horasTrabajadas}
               onChange={(e) => setHorasTrabajadas(String(Math.floor(Number(e.target.value))))}
               className="border border-gray-300 rounded-md w-full p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-green-500"
             />
             <label className="block text-sm font-medium text-gray-700 mb-1">Horas Extra</label>
-            <input
-              type="number" min="0" step="1"
-              value={horasExtra}
+            <input type="number" min="0" step="1" value={horasExtra}
               onChange={(e) => setHorasExtra(String(Math.floor(Number(e.target.value))))}
               className="border border-gray-300 rounded-md w-full p-2 mb-6 focus:outline-none focus:ring-2 focus:ring-green-500"
             />
@@ -689,7 +803,7 @@ export default function Nomina() {
               <button onClick={handleGuardarDetalle} disabled={guardandoDetalle}
                 className="flex-1 bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition font-medium disabled:opacity-60"
               >
-                {guardandoDetalle ? "Guardando..." : "Guardar"}
+                {guardandoDetalle ? "Guardando y recalculando..." : "Guardar"}
               </button>
               <button onClick={() => setEditandoDetalle(null)} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-md hover:bg-gray-200 transition font-medium">
                 Cancelar
@@ -699,7 +813,6 @@ export default function Nomina() {
         </div>
       )}
 
-      {/* Modal editar concepto manual */}
       {editandoConcepto && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm">
@@ -707,10 +820,11 @@ export default function Nomina() {
             <p className="text-sm text-gray-500 mb-1">{editandoConcepto.concepto.nombre}</p>
             <p className="text-xs text-gray-400 mb-4">{editandoConcepto.concepto.tipo} · Ingreso manual</p>
             <label className="block text-sm font-medium text-gray-700 mb-1">Monto (Q)</label>
-            <input
-              type="number" min="0" step="0.01"
-              value={montoConcepto}
-              onChange={(e) => setMontoConcepto(e.target.value)}
+            <input type="number" min="0" step="0.01" value={montoConcepto}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (Number(val) >= 0 || val === "") setMontoConcepto(val);
+              }}
               onKeyDown={(e) => e.key === "Enter" && handleGuardarConcepto()}
               className="border border-gray-300 rounded-md w-full p-2 mb-6 focus:outline-none focus:ring-2 focus:ring-green-500"
               autoFocus
@@ -719,7 +833,7 @@ export default function Nomina() {
               <button onClick={handleGuardarConcepto} disabled={guardandoConcepto || !montoConcepto}
                 className="flex-1 bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition font-medium disabled:opacity-60"
               >
-                {guardandoConcepto ? "Guardando..." : "Guardar"}
+                {guardandoConcepto ? "Guardando y recalculando..." : "Guardar"}
               </button>
               <button onClick={() => setEditandoConcepto(null)} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-md hover:bg-gray-200 transition font-medium">
                 Cancelar
