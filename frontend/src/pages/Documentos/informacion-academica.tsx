@@ -56,6 +56,54 @@ const hoy = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 600
 const CACHE_KEY = "cache_academicos";
 const CACHE_TTL = 5 * 60 * 1000;
 
+function SearchSelect({
+  options, value, onChange, placeholder, labelKey, valueKey, disabled = false,
+}: {
+  options: any[]; value: number | string | ""; onChange: (v: number | string | "") => void;
+  placeholder: string; labelKey: (o: any) => string; valueKey: (o: any) => number | string; disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busq, setBusq] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+  const mostrarBusqueda = options.length >= 5;
+  const filtrados = busq.trim() ? options.filter((o) => labelKey(o).toLowerCase().includes(busq.toLowerCase())) : options;
+  const seleccionado = options.find((o) => valueKey(o) === value);
+  useEffect(() => {
+    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setBusq(""); } };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+  return (
+    <div ref={ref} className="relative w-full">
+      <button type="button" onClick={() => { if (!disabled) setOpen(!open); }}
+        className={`w-full border rounded-md px-3 py-2 text-sm text-left flex items-center justify-between gap-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${disabled ? "bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed" : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"}`}>
+        <span className="truncate">{seleccionado ? labelKey(seleccionado) : placeholder}</span>
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><polyline points="6 9 12 15 18 9" /></svg>
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
+          {mostrarBusqueda && (
+            <div className="p-2 border-b border-gray-100">
+              <input autoFocus type="text" placeholder="Buscar..." value={busq} onChange={(e) => setBusq(e.target.value)}
+                className="w-full border border-gray-200 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
+            </div>
+          )}
+          <ul className="max-h-48 overflow-y-auto py-1">
+            <li onClick={() => { onChange(""); setOpen(false); setBusq(""); }} className="px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 cursor-pointer">{placeholder}</li>
+            {filtrados.length === 0 ? <li className="px-3 py-2 text-sm text-gray-400">Sin resultados</li>
+              : filtrados.map((o) => (
+                <li key={valueKey(o)} onClick={() => { onChange(valueKey(o)); setOpen(false); setBusq(""); }}
+                  className={`px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 hover:text-blue-700 ${value === valueKey(o) ? "bg-blue-50 text-blue-700 font-medium" : "text-gray-700"}`}>
+                  {labelKey(o)}
+                </li>
+              ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function InformacionAcademica() {
   if (!isAdminOrRH()) return <Navigate to="/dashboard" replace />;
 
@@ -105,9 +153,10 @@ export default function InformacionAcademica() {
   };
 
   const limpiarCache = () => {
-    sessionStorage.removeItem(CACHE_KEY);       
-    sessionStorage.removeItem("dashboard_cache");  
+    sessionStorage.removeItem(CACHE_KEY);
+    sessionStorage.removeItem("dashboard_cache");
   };
+
   const cargarDatos = async (forzar = false) => {
     if (!forzar) {
       const cache = sessionStorage.getItem(CACHE_KEY);
@@ -397,15 +446,16 @@ export default function InformacionAcademica() {
                 className="border border-gray-300 rounded-md pl-9 pr-3 py-2 w-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-            <select value={empSeleccionado}
-              onChange={(e) => setEmpSeleccionado(e.target.value === "todos" ? "todos" : Number(e.target.value))}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
-            >
-              <option value="todos">Todos los empleados</option>
-              {empleados.map((emp) => (
-                <option key={emp.id_empleado} value={emp.id_empleado}>{emp.nombre_empleado} {emp.apellido_empleado}</option>
-              ))}
-            </select>
+            <div className="w-56">
+              <SearchSelect
+                options={[{ id_empleado: "todos", nombre_empleado: "Todos los empleados", apellido_empleado: "" }, ...empleados]}
+                value={empSeleccionado}
+                onChange={(v) => setEmpSeleccionado(v === "todos" ? "todos" : Number(v))}
+                placeholder="Seleccione un filtro"
+                labelKey={(e) => e.id_empleado === "todos" ? "Todos los empleados" : `${e.nombre_empleado} ${e.apellido_empleado}`}
+                valueKey={(e) => e.id_empleado}
+              />
+            </div>
             <span className="text-sm text-gray-400 ml-auto">{academicosFiltrados.length} registro{academicosFiltrados.length !== 1 ? "s" : ""}</span>
           </div>
 
@@ -482,7 +532,7 @@ export default function InformacionAcademica() {
         </main>
       )}
 
-      {/* ── Modal Crear/Editar ── */}
+      {/* Modal Crear/Editar */}
       {mostrarModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg">
@@ -498,17 +548,15 @@ export default function InformacionAcademica() {
             <div className="flex flex-col gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Empleado</label>
-                <select value={form.id_empleado} onChange={(e) => setForm((p) => ({ ...p, id_empleado: e.target.value }))}
-                  className="border border-gray-300 rounded-md w-full p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                <SearchSelect
+                  options={empleados.filter((emp) => !academicos.some((ac) => ac.id_empleado === emp.id_empleado))}
+                  value={form.id_empleado === "" ? "" : Number(form.id_empleado)}
+                  onChange={(v) => setForm((p) => ({ ...p, id_empleado: v === "" ? "" : String(v) }))}
+                  placeholder="Seleccionar empleado"
+                  labelKey={(e) => `${e.nombre_empleado} ${e.apellido_empleado}`}
+                  valueKey={(e) => e.id_empleado}
                   disabled={!!editando}
-                >
-                  <option value="">Seleccionar empleado</option>
-                  {empleados
-                    .filter((emp) => !academicos.some((ac) => ac.id_empleado === emp.id_empleado))
-                    .map((emp) => (
-                      <option key={emp.id_empleado} value={emp.id_empleado}>{emp.nombre_empleado} {emp.apellido_empleado}</option>
-                    ))}
-                </select>
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
@@ -553,7 +601,7 @@ export default function InformacionAcademica() {
         </div>
       )}
 
-      {/* ── Panel Documentos ── */}
+      {/* Panel Documentos */}
       {academicoActivo && (
         <div className="fixed inset-0 bg-black/40 flex items-start justify-center z-50 px-4 py-8 overflow-y-auto">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-2xl">
@@ -642,9 +690,9 @@ export default function InformacionAcademica() {
         </div>
       )}
 
-      {/* ── Modal Subir / Editar Doc ── */}
+      {/* Modal Subir / Editar Doc */}
       {modalDoc && academicoActivo && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-60 px-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] px-4">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">{modalDoc.modo === "crear" ? "Subir Documento" : "Editar Documento"}</h3>
@@ -709,9 +757,9 @@ export default function InformacionAcademica() {
         </div>
       )}
 
-      {/* ── Vista Previa ── */}
+      {/* Vista Previa */}
       {previstaDoc && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-70 px-4">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[70] px-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl h-[80vh] flex flex-col">
             <div className="flex items-center justify-between px-5 py-3 border-b">
               <div>
