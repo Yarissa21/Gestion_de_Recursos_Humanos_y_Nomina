@@ -219,10 +219,17 @@ export default function Documentos() {
     const id = getId(editandoDoc);
     try {
       const formData = new FormData();
+
+      // Agregar .pdf si no lo tiene
+      const base = nuevoNombre.trim().toLowerCase().endsWith(".pdf")
+        ? nuevoNombre.trim().slice(0, -4)
+        : nuevoNombre.trim();
+      const nombreFinal = `${base}.pdf`;
+
       if (editandoDoc.categoria === "expediente") {
-        formData.append("nombre_documento", nuevoNombre.trim());
+        formData.append("nombre_documento", nombreFinal);
       } else {
-        formData.append("nombre", nuevoNombre.trim());
+        formData.append("nombre", nombreFinal);
       }
       if (nuevoArchivo) formData.append("file", nuevoArchivo);
       const url = editandoDoc.categoria === "expediente"
@@ -459,9 +466,10 @@ export default function Documentos() {
             <input type="text" value={nuevoNombre}
               onChange={(e) => setNuevoNombre(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleGuardarEdicion()}
-              className="border border-gray-300 rounded-md w-full p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="border border-gray-300 rounded-md w-full p-2 mb-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
               autoFocus
             />
+            <p className="text-xs text-gray-400 mb-3">Se agregará .pdf automáticamente si no lo incluyes</p>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Reemplazar archivo
               <span className="text-gray-400 font-normal ml-1">(opcional)</span>

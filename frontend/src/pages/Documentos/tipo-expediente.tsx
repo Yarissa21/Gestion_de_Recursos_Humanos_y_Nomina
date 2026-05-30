@@ -350,12 +350,18 @@ export default function TipoExpediente() {
         </div>
 
         <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className={`rounded-xl p-4 border ${tabActiva === "expediente" ? "border-amber-200 bg-amber-50" : "border-gray-100 bg-white"}`}>
+          <div
+            className={`rounded-xl p-4 border cursor-pointer hover:shadow-md transition ${tabActiva === "expediente" ? "border-amber-200 bg-amber-50" : "border-gray-100 bg-white"}`}
+            onClick={() => setTabActiva("expediente")}
+          >
             <p className="text-xs text-gray-500 mb-1">Tipos de Expediente</p>
             <p className="text-3xl font-bold text-amber-600">{tiposExp.length}</p>
             <p className="text-xs text-gray-400 mt-1">{tiposExp.filter((t) => t.obligatorio).length} obligatorio{tiposExp.filter((t) => t.obligatorio).length !== 1 ? "s" : ""}</p>
           </div>
-          <div className={`rounded-xl p-4 border ${tabActiva === "academico" ? "border-blue-200 bg-blue-50" : "border-gray-100 bg-white"}`}>
+          <div
+            className={`rounded-xl p-4 border cursor-pointer hover:shadow-md transition ${tabActiva === "academico" ? "border-blue-200 bg-blue-50" : "border-gray-100 bg-white"}`}
+            onClick={() => setTabActiva("academico")}
+          >
             <p className="text-xs text-gray-500 mb-1">Tipos Académicos</p>
             <p className="text-3xl font-bold text-blue-600">{tiposAcad.length}</p>
             <p className="text-xs text-gray-400 mt-1">{tiposAcad.filter((t) => t.obligatorio).length} obligatorio{tiposAcad.filter((t) => t.obligatorio).length !== 1 ? "s" : ""}</p>

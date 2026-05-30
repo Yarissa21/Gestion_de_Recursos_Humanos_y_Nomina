@@ -96,7 +96,6 @@ export class ReportesService {
     };
   }
 
-  // Fila compacta para tablas de datos densos
   private filaInfoCompacta(clave: string, valor: string, anchoLabel = 100): any {
     return {
       columns: [
@@ -199,15 +198,21 @@ export class ReportesService {
     const todosConceptos     = [...conceptosIngreso, ...conceptosOtros, ...conceptosDeduccion];
 
     const anchoConcepto = todosConceptos.length <= 4 ? '*' : 'auto';
-    const widths: any[] = ['auto', 'auto', '*', '*', 'auto', ...todosConceptos.map(() => anchoConcepto), 'auto'];
+    // Añadimos columnas de horas
+    const widths: any[] = ['auto', 'auto', '*', '*', 'auto', 'auto', 'auto', 'auto', 'auto', ...todosConceptos.map(() => anchoConcepto), 'auto'];
 
     const hFila1: any[] = [
       { text: 'No.',             bold: true, fontSize: 7, color: COLOR_WHITE, fillColor: COLOR_PRIMARY, alignment: 'center', margin: [3, 5], rowSpan: 2 },
-      { text: 'NIT',             bold: true, fontSize: 7, color: COLOR_WHITE, fillColor: COLOR_PRIMARY, alignment: 'center', margin: [3, 5], rowSpan: 2 },
+      { text: 'DPI',             bold: true, fontSize: 7, color: COLOR_WHITE, fillColor: COLOR_PRIMARY, alignment: 'center', margin: [3, 5], rowSpan: 2 },
       { text: 'Nombre',          bold: true, fontSize: 7, color: COLOR_WHITE, fillColor: COLOR_PRIMARY, alignment: 'center', margin: [3, 5], rowSpan: 2 },
       { text: 'Puesto/Servicio', bold: true, fontSize: 7, color: COLOR_WHITE, fillColor: COLOR_PRIMARY, alignment: 'center', margin: [3, 5], rowSpan: 2 },
       { text: 'Salario\nBase',   bold: true, fontSize: 7, color: COLOR_WHITE, fillColor: COLOR_PRIMARY, alignment: 'center', margin: [3, 5], rowSpan: 2 },
+      { text: 'Hrs.\nTrab.',     bold: true, fontSize: 7, color: COLOR_WHITE, fillColor: COLOR_SECONDARY, alignment: 'center', margin: [3, 5], rowSpan: 2 },
+      { text: 'Pago\nHrs. Norm.',bold: true, fontSize: 7, color: COLOR_WHITE, fillColor: COLOR_SECONDARY, alignment: 'center', margin: [3, 5], rowSpan: 2 },
+      { text: 'Hrs.\nExtra',     bold: true, fontSize: 7, color: COLOR_WHITE, fillColor: COLOR_SECONDARY, alignment: 'center', margin: [3, 5], rowSpan: 2 },
+      { text: 'Pago\nHrs. Extra',bold: true, fontSize: 7, color: COLOR_WHITE, fillColor: COLOR_SECONDARY, alignment: 'center', margin: [3, 5], rowSpan: 2 },
     ];
+
     if (conceptosIngreso.length > 0) {
       hFila1.push({ text: 'INGRESOS', bold: true, fontSize: 7, color: COLOR_WHITE, fillColor: '#276749', alignment: 'center', margin: [3, 5], colSpan: conceptosIngreso.length });
       for (let i = 1; i < conceptosIngreso.length; i++) hFila1.push({});
@@ -222,10 +227,10 @@ export class ReportesService {
     }
     hFila1.push({ text: 'Salario\nDevengado', bold: true, fontSize: 7, color: COLOR_WHITE, fillColor: COLOR_PRIMARY, alignment: 'center', margin: [3, 5], rowSpan: 2 });
 
-    const hFila2: any[] = [{}, {}, {}, {}, {}];
-    for (const [, c] of conceptosIngreso)   hFila2.push({ text: c.nombre, bold: true, fontSize: 6, color: COLOR_WHITE, fillColor: '#276749',     alignment: 'center', margin: [3, 3] });
+    const hFila2: any[] = [{}, {}, {}, {}, {}, {}, {}, {}, {}];
+    for (const [, c] of conceptosIngreso)   hFila2.push({ text: c.nombre, bold: true, fontSize: 6, color: COLOR_WHITE, fillColor: '#276749',      alignment: 'center', margin: [3, 3] });
     for (const [, c] of conceptosOtros)     hFila2.push({ text: c.nombre, bold: true, fontSize: 6, color: COLOR_WHITE, fillColor: COLOR_SECONDARY, alignment: 'center', margin: [3, 3] });
-    for (const [, c] of conceptosDeduccion) hFila2.push({ text: c.nombre, bold: true, fontSize: 6, color: COLOR_WHITE, fillColor: '#742A2A',     alignment: 'center', margin: [3, 3] });
+    for (const [, c] of conceptosDeduccion) hFila2.push({ text: c.nombre, bold: true, fontSize: 6, color: COLOR_WHITE, fillColor: '#742A2A',       alignment: 'center', margin: [3, 3] });
     hFila2.push({});
 
     const filasDatos = detalles.map((d, idx) => {
@@ -238,6 +243,10 @@ export class ReportesService {
         { text: `${d.empleado.nombre_empleado} ${d.empleado.apellido_empleado}`, fontSize: 7, color: COLOR_TEXT, fillColor: bg, margin: [3, 4] },
         { text: d.empleado.puesto?.nombre_puesto ?? '—',                         fontSize: 7, color: COLOR_TEXT, fillColor: bg, margin: [3, 4] },
         { text: `Q${Number(d.salario_base).toFixed(2)}`,                         fontSize: 7, color: COLOR_TEXT, alignment: 'right', fillColor: bg, margin: [3, 4] },
+        { text: String(Number(d.horas_trabajadas ?? 0)),                         fontSize: 7, color: COLOR_TEXT, alignment: 'center', fillColor: bg, margin: [3, 4] },
+        { text: `Q${Number(d.pago_horas_normales ?? 0).toFixed(2)}`,             fontSize: 7, color: COLOR_TEXT, alignment: 'right', fillColor: bg, margin: [3, 4] },
+        { text: String(Number(d.horas_extra ?? 0)),                              fontSize: 7, color: COLOR_TEXT, alignment: 'center', fillColor: bg, margin: [3, 4] },
+        { text: `Q${Number(d.pago_horas_extra ?? 0).toFixed(2)}`,                fontSize: 7, color: COLOR_TEXT, alignment: 'right', fillColor: bg, margin: [3, 4] },
       ];
       for (const [id] of conceptosIngreso)   fila.push({ text: mapaMontos.has(id) ? `Q${mapaMontos.get(id)!.toFixed(2)}` : '0.00', fontSize: 7, color: COLOR_TEXT, alignment: 'right', fillColor: idx % 2 === 0 ? '#F0FFF4' : '#E6FFF0', margin: [3, 4] });
       for (const [id] of conceptosOtros)     fila.push({ text: mapaMontos.has(id) ? `Q${mapaMontos.get(id)!.toFixed(2)}` : '0.00', fontSize: 7, color: COLOR_TEXT, alignment: 'right', fillColor: bg, margin: [3, 4] });
@@ -248,8 +257,8 @@ export class ReportesService {
 
     const totalGeneral = detalles.reduce((acc, d) => acc + Number(d.total_liquido ?? 0), 0);
     const filaTotales: any[] = [
-      { text: 'TOTALES', bold: true, fontSize: 7, color: COLOR_WHITE, fillColor: COLOR_PRIMARY, colSpan: 5, alignment: 'right', margin: [4, 5] },
-      {}, {}, {}, {},
+      { text: 'TOTALES', bold: true, fontSize: 7, color: COLOR_WHITE, fillColor: COLOR_PRIMARY, colSpan: 9, alignment: 'right', margin: [4, 5] },
+      {}, {}, {}, {}, {}, {}, {}, {},
     ];
     for (const [id, c] of todosConceptos) {
       const total = detalles.reduce((acc, d) => {
@@ -265,6 +274,44 @@ export class ReportesService {
       layout: { hLineWidth: (i: number) => (i === 0 || i === 2) ? 0 : 0.4, vLineWidth: () => 0.3, hLineColor: () => '#CBD5E0', vLineColor: () => '#CBD5E0' },
       margin: [0, 4, 0, 12],
     };
+  }
+
+  // ============================
+  // HELPER: calcular período
+  // ============================
+
+  private calcularPeriodo(periodo: string, tipo: string): string {
+    const meses: Record<string, number> = {
+      'Enero': 1, 'Febrero': 2, 'Marzo': 3, 'Abril': 4,
+      'Mayo': 5, 'Junio': 6, 'Julio': 7, 'Agosto': 8,
+      'Septiembre': 9, 'Octubre': 10, 'Noviembre': 11, 'Diciembre': 12,
+    };
+
+    const partes = periodo.trim().split(' ');
+    let mesNombre: string;
+    let anio: number;
+
+    if (periodo.startsWith('Primera Quincena')) {
+      mesNombre = partes[2];
+      anio      = Number(partes[3]);
+      const mes = meses[mesNombre] ?? 1;
+      return `01/${String(mes).padStart(2, '0')}/${anio} al 15/${String(mes).padStart(2, '0')}/${anio}`;
+    }
+
+    if (periodo.startsWith('Segunda Quincena')) {
+      mesNombre = partes[2];
+      anio      = Number(partes[3]);
+      const mes     = meses[mesNombre] ?? 1;
+      const diasMes = new Date(anio, mes, 0).getDate();
+      return `16/${String(mes).padStart(2, '0')}/${anio} al ${String(diasMes).padStart(2, '0')}/${String(mes).padStart(2, '0')}/${anio}`;
+    }
+
+    // Mensual: "Mayo 2026"
+    mesNombre = partes[0];
+    anio      = Number(partes[1]);
+    const mes     = meses[mesNombre] ?? 1;
+    const diasMes = new Date(anio, mes, 0).getDate();
+    return `01/${String(mes).padStart(2, '0')}/${anio} al ${String(diasMes).padStart(2, '0')}/${String(mes).padStart(2, '0')}/${anio}`;
   }
 
   // ============================
@@ -294,14 +341,17 @@ export class ReportesService {
     const totalDeducciones = deducciones.reduce((a: number, c: any) => a + Number(c.monto), 0);
     const totalLiquido     = Number(detalle.total_liquido ?? 0);
 
-    const [anio, mes]  = nomina.periodo.split('-');
-    const diasMes      = new Date(Number(anio), Number(mes), 0).getDate();
-    const periodoTexto = `${anio}-${mes}-01 al ${anio}-${mes}-${String(diasMes).padStart(2, '0')}`;
+    const periodoTexto = this.calcularPeriodo(nomina.periodo, nomina.tipo);
     const obsTexto     = nomina.tipo === 'Quincenal' ? 'BOLETA QUINCENAL' : 'BOLETA MENSUAL';
 
+    const horasTrabajadas   = Number(detalle.horas_trabajadas ?? 0);
+    const horasExtra        = Number(detalle.horas_extra ?? 0);
+    const pagoHorasNormales = Number(detalle.pago_horas_normales ?? 0);
+    const pagoHorasExtra    = Number(detalle.pago_horas_extra ?? 0);
+
     const filasIng: { desc: string; monto: number | null }[] = [
-      ...ingresos.map((c: any) => ({ desc: c.concepto.nombre.toUpperCase(), monto: Number(c.monto) })),
       { desc: 'SALARIO ORDINARIO', monto: Number(detalle.salario_base) },
+      ...ingresos.map((c: any) => ({ desc: c.concepto.nombre.toUpperCase(), monto: Number(c.monto) })),
     ];
     const filesDed: { desc: string; monto: number | null }[] = [
       ...deducciones.map((c: any) => ({ desc: c.concepto.nombre.toUpperCase(), monto: Number(c.monto) })),
@@ -321,7 +371,7 @@ export class ReportesService {
     });
 
     return [
-      { text: 'RECIBO DE PAGO MENSUAL', fontSize: 13, bold: true, alignment: 'center', color: COLOR_TEXT, margin: [0, 0, 0, 2] },
+      { text: 'RECIBO DE PAGO', fontSize: 13, bold: true, alignment: 'center', color: COLOR_TEXT, margin: [0, 0, 0, 2] },
       {
         table: {
           widths: ['*'],
@@ -332,10 +382,10 @@ export class ReportesService {
                 columns: [
                   {
                     stack: [
-                      this.filaInfoBoleta('Código',  String(emp.id_empleado)),
-                      this.filaInfoBoleta('Nombre',  `${emp.nombre_empleado} ${emp.apellido_empleado}`),
-                      this.filaInfoBoleta('Nit',     emp.dpi ?? '—'),
-                      this.filaInfoBoleta('Puesto',  emp.puesto?.nombre_puesto ?? '—'),
+                      this.filaInfoBoleta('Código', String(emp.id_empleado)),
+                      this.filaInfoBoleta('Nombre', `${emp.nombre_empleado} ${emp.apellido_empleado}`),
+                      this.filaInfoBoleta('DPI',    emp.dpi ?? '—'),
+                      this.filaInfoBoleta('Puesto', emp.puesto?.nombre_puesto ?? '—'),
                     ],
                     width: '50%',
                   },
@@ -355,8 +405,31 @@ export class ReportesService {
           }]],
         },
         layout: { hLineWidth: () => 0.5, vLineWidth: () => 0.5, hLineColor: () => '#A0AEC0', vLineColor: () => '#A0AEC0' },
-        margin: [0, 0, 0, 8],
+        margin: [0, 0, 0, 6],
       },
+      // ── Tabla de horas ──
+      {
+        table: {
+          widths: ['*', '*', '*', '*'],
+          body: [
+            [
+              { text: 'Horas Trabajadas',    bold: true, fontSize: 8, color: COLOR_WHITE, fillColor: COLOR_SECONDARY, alignment: 'center', margin: [4, 4] },
+              { text: 'Pago Horas Normales', bold: true, fontSize: 8, color: COLOR_WHITE, fillColor: COLOR_SECONDARY, alignment: 'center', margin: [4, 4] },
+              { text: 'Horas Extra',         bold: true, fontSize: 8, color: COLOR_WHITE, fillColor: COLOR_SECONDARY, alignment: 'center', margin: [4, 4] },
+              { text: 'Pago Horas Extra',    bold: true, fontSize: 8, color: COLOR_WHITE, fillColor: COLOR_SECONDARY, alignment: 'center', margin: [4, 4] },
+            ],
+            [
+              { text: String(horasTrabajadas),                   fontSize: 9, bold: true, color: COLOR_TEXT, alignment: 'center', margin: [4, 4] },
+              { text: `Q${pagoHorasNormales.toFixed(2)}`,        fontSize: 9, bold: true, color: COLOR_TEXT, alignment: 'center', margin: [4, 4] },
+              { text: String(horasExtra),                        fontSize: 9, bold: true, color: COLOR_TEXT, alignment: 'center', margin: [4, 4] },
+              { text: `Q${pagoHorasExtra.toFixed(2)}`,           fontSize: 9, bold: true, color: COLOR_TEXT, alignment: 'center', margin: [4, 4] },
+            ],
+          ],
+        },
+        layout: { hLineWidth: () => 0.4, vLineWidth: () => 0.4, hLineColor: () => '#A0AEC0', vLineColor: () => '#A0AEC0' },
+        margin: [0, 0, 0, 6],
+      },
+      // ── Tabla ingresos / descuentos ──
       {
         table: {
           widths: ['*', 80, '*', 80],
@@ -503,7 +576,7 @@ export class ReportesService {
   }
 
   // ============================
-  // REPORTE GENERAL EXPEDIENTES — diseño compacto
+  // REPORTE GENERAL EXPEDIENTES
   // ============================
 
   async generarReporteExpedientes(res: any) {
@@ -528,7 +601,6 @@ export class ReportesService {
       ...this.headerBlock('REPORTE DE EXPEDIENTES', `${empleados.length} empleados registrados`),
     ];
 
-    // Tabla resumen general compacta
     contenido.push({ text: 'RESUMEN GENERAL', style: 'subheader' });
     contenido.push(this.tablaConceptos([
       ['#', 'Empleado', 'DPI', 'Docs. Subidos', 'Docs. Faltantes', 'Estado'],
@@ -624,12 +696,7 @@ export class ReportesService {
             fillColor: COLOR_WHITE,
           }]],
         },
-        layout: {
-          hLineWidth: () => 0.5,
-          vLineWidth: () => 0.5,
-          hLineColor: () => '#CBD5E0',
-          vLineColor: () => '#CBD5E0',
-        },
+        layout: { hLineWidth: () => 0.5, vLineWidth: () => 0.5, hLineColor: () => '#CBD5E0', vLineColor: () => '#CBD5E0' },
         margin: [0, 0, 0, 6],
       });
     }
@@ -821,7 +888,7 @@ export class ReportesService {
   }
 
   // ============================
-  // REPORTE GENERAL ACADÉMICO — diseño compacto
+  // REPORTE GENERAL ACADÉMICO
   // ============================
 
   async generarReporteAcademicos(res: any) {
@@ -848,7 +915,6 @@ export class ReportesService {
       ...this.headerBlock('REPORTE DE INFORMACIÓN ACADÉMICA', `${empleados.length} empleados`),
     ];
 
-    // Resumen general compacto
     contenido.push({ text: 'RESUMEN GENERAL', style: 'subheader' });
     contenido.push(this.tablaConceptos([
       ['#', 'Empleado', 'Inf. Académica', 'Docs. Subidos', 'Docs. Faltantes'],
@@ -873,7 +939,6 @@ export class ReportesService {
 
       const todosLosDocs = emp.academicos.flatMap((a) => a.documentos);
 
-      // Encabezado del empleado compacto
       contenido.push({
         table: {
           widths: ['*'],
@@ -894,12 +959,10 @@ export class ReportesService {
         margin: [0, 4, 0, 3],
       });
 
-      // Tarjetas académicas compactas
       for (let i = 0; i < emp.academicos.length; i++) {
         contenido.push(this.tarjetaInfoAcademica(emp.academicos[i], i));
       }
 
-      // Documentos en dos columnas
       contenido.push(...this.seccionDocumentosAcademicos(todosLosDocs, tiposDoc));
     }
 
@@ -907,7 +970,7 @@ export class ReportesService {
   }
 
   // ============================
-  // REPORTE ACADÉMICO EMPLEADO — diseño compacto
+  // REPORTE ACADÉMICO EMPLEADO
   // ============================
 
   async generarReporteAcademicoEmpleado(id: number, res: any) {
@@ -941,7 +1004,6 @@ export class ReportesService {
       ...this.headerBlock('INFORMACIÓN ACADÉMICA', `${emp.nombre_empleado} ${emp.apellido_empleado}`),
     ];
 
-    // Tarjeta resumen del empleado
     contenido.push({
       table: {
         widths: ['*'],
@@ -960,13 +1022,13 @@ export class ReportesService {
                 widths: ['*', '*', '*'],
                 body: [
                   [
-                    { text: 'Registros',      fontSize: 7, bold: true, color: COLOR_MUTED, alignment: 'center' },
-                    { text: 'Docs. Subidos',  fontSize: 7, bold: true, color: COLOR_MUTED, alignment: 'center' },
+                    { text: 'Registros',       fontSize: 7, bold: true, color: COLOR_MUTED, alignment: 'center' },
+                    { text: 'Docs. Subidos',   fontSize: 7, bold: true, color: COLOR_MUTED, alignment: 'center' },
                     { text: 'Docs. Faltantes', fontSize: 7, bold: true, color: COLOR_MUTED, alignment: 'center' },
                   ],
                   [
                     { text: String(emp.academicos.length), fontSize: 16, bold: true, color: COLOR_PRIMARY, alignment: 'center' },
-                    { text: String(totalSubidos),           fontSize: 16, bold: true, color: COLOR_SUCCESS, alignment: 'center' },
+                    { text: String(totalSubidos),           fontSize: 16, bold: true, color: COLOR_SUCCESS,  alignment: 'center' },
                     { text: String(totalFaltantes),         fontSize: 16, bold: true, color: totalFaltantes > 0 ? COLOR_WARNING : COLOR_MUTED, alignment: 'center' },
                   ],
                 ],
